@@ -5,22 +5,16 @@ Mythic agent
   <img src="https://4c22726d.git-6vm.pages.dev/2sxCepI01.svg" alt="Logo" width="300">
 </p>
 
-No silêncio da sessão remota, wtechsec carregou sua criação: um script PowerShell artesanal, que clonava o processo LSASS usando a obscura syscall NtCreateProcessEx. O plano era simples e engenhoso:
-**Clonar o LSASS para um novo processo fora da vigilância direta do CrowdStrike.**
-**Realizar o dump nesse clone com MiniDumpWriteDump, escapando dos ganchos e alertas comportamentais.**
+Na mitologia egípcia, Anúbis era o deus dos mortos e guardião das passagens entre o mundo dos vivos e o além. Representado com cabeça de chacal, ele guiava as almas, pesava corações e determinava quem poderia atravessar em segurança.
 
-O script rodou. Nenhum alerta. Nenhum bloqueio. Apenas um dump limpo, salvo em **C:\Users\Public\forked_lsass.dmp.**
+Assim como na tradição antiga, este projeto Anubis assume o papel de guia e intermediário – mas, em vez de espíritos, ele atua no domínio digital.
+Trata-se de um agent C2 para o Mythic, projetado para operar de forma furtiva, confiável e resiliente, estabelecendo canais de comunicação entre alvo e operador, com foco em:
 
-wtechsec sorriu. Ele sabia o que tinha em mãos. Um bypass real, discreto e funcional. O dump foi exfiltrado com calma. Ao analisá-lo localmente com o Mimikatz, ele recuperou as credenciais de domínio de um administrador sênior.
-O domínio era dele.
+Discrição: manter presença sem chamar atenção.
 
-**E o CrowdStrike? Silencioso como a noite.**
+Persistência: resistir a interrupções e manter o controle.
 
-![Banner do Projeto](Assets/Banner.png)
+Precisão: entregar comandos e resultados de forma eficiente.
 
-# Requesitos de Ataque
-- Credencial de local admin ou com permissionamento equivalente.
-- Usar Winrm - EvilWinrm, Powershell remote, ou reverse shell, dependendo do nivel de comprometimento do alvo e orquestração.
-- Alvo Windos,10,11, até versões server.
-- CrowdStrike ativo no alvo ou outro EDR monitorando processo e bloqueando dump manual.
-- Máquina atacante com pypykats, evil-winrm, netexec e editor de texto para editar o script caso precise.
+O Anubis C2 Agent não é apenas uma ferramenta técnica, mas uma referência ao papel mítico do deus que vigiava fronteiras — neste caso, a fronteira entre segurança e intrusão controlada em cenários de Red Team e simulações adversárias.
+

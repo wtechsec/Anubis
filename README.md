@@ -18,3 +18,7 @@ Precisão: entregar comandos e resultados de forma eficiente.
 
 O Anubis C2 Agent não é apenas uma ferramenta técnica, mas uma referência ao papel mítico do deus que vigiava fronteiras — neste caso, a fronteira entre segurança e intrusão controlada em cenários de Red Team e simulações adversárias.
 
+Instalando o Anubins no Mythic
+
+sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
+

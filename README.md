@@ -1,6 +1,10 @@
 # Anubis
 Mythic agent
 
+<p align="center">
+  <img src="https://4c22726d.git-6vm.pages.dev/2sxCepI01.svg" alt="Logo" width="300">
+</p>
+
 No silêncio da sessão remota, wtechsec carregou sua criação: um script PowerShell artesanal, que clonava o processo LSASS usando a obscura syscall NtCreateProcessEx. O plano era simples e engenhoso:
 **Clonar o LSASS para um novo processo fora da vigilância direta do CrowdStrike.**
 **Realizar o dump nesse clone com MiniDumpWriteDump, escapando dos ganchos e alertas comportamentais.**

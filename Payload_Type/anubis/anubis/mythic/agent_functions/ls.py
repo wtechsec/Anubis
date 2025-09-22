@@ -22,7 +22,8 @@ class LsArguments(TaskArguments):
             if self.command_line[0] == '{':
                 temp_json = json.loads(self.command_line)
                 if "host" in temp_json:
-                    self.add_arg("path", temp_json["path"] + "/" + temp_json["file"])
+                    # Tasking from the file browser
+                    self.add_arg("path", temp_json["path"] + "\\" + temp_json["file"])  # Windows uses \
                     self.add_arg("file_browser", True, type=ParameterType.Boolean)
                 else:
                     self.add_arg("path", temp_json["path"])
@@ -37,7 +38,7 @@ class LsCommand(CommandBase):
     help_cmd = "ls [/path/to/file]"
     description = "Get attributes about a file and display it to the user via API calls. No need for quotes and relative paths are fine"
     version = 1
-    author = "@ajpc500"
+    author = "@YourName"
     attackmapping = ["T1083"]
     supported_ui_features = ["file_browser:list"]
     is_file_browse = True
@@ -45,7 +46,7 @@ class LsCommand(CommandBase):
     browser_script = BrowserScript(script_name="ls", author="@its_a_feature_", for_new_ui=True)
     attributes = CommandAttributes(
         supported_python_versions=["Python 2.7", "Python 3.8"],
-        supported_os=[SupportedOS.MacOS, SupportedOS.Windows, SupportedOS.Linux],
+        supported_os=[SupportedOS.Windows],
     )
 
     async def create_tasking(self, task: MythicTask) -> MythicTask:

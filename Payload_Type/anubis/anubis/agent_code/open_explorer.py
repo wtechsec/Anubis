@@ -1,6 +1,17 @@
+import json
 
-# Função principal do comando open_explorer
 def open_explorer(self, task, data=None):
+    """
+    Registra e envia uma tarefa para abrir o Explorador de Arquivos (Windows Explorer) no diretório especificado
+    ou no diretório atual do agente.
+    
+    Args:
+        task: Objeto de tarefa do Mythic.
+        data (dict, optional): Dados adicionais da tarefa, incluindo parâmetros como 'path'.
+    
+    Returns:
+        str: Mensagem de confirmação ou erro.
+    """
     # Parâmetros esperados
     params = {
         "path": {"type": "str", "default": None, "description": "Optional path to open in Explorer (e.g., 'C:\\Windows')"}
@@ -15,7 +26,7 @@ def open_explorer(self, task, data=None):
     # Monta a tarefa para enviar ao agente
     task_options = {
         "command": "open_explorer",
-        "params": json.dumps({"path": path}) if path else json.dumps({})  # Envia caminho se fornecido
+        "params": json.dumps({"path": path}) if path else json.dumps({})
     }
 
     # Envia a tarefa ao agente e retorna a resposta
@@ -27,7 +38,16 @@ def open_explorer(self, task, data=None):
 
 # Função de processamento da resposta (opcional, dependendo da implementação do Mythic)
 def on_response(self, response, options=None):
-    # Processa a resposta do agente (ex.: "Opened Explorer at C:\Windows")
+    """
+    Processa a resposta retornada pelo agente após a execução do comando.
+    
+    Args:
+        response: Resposta do agente.
+        options: Opções adicionais (não utilizadas aqui).
+    
+    Returns:
+        str: Mensagem formatada com o resultado.
+    """
     if "user_output" in response:
         return f"Explorer opened: {response['user_output']}"
     return "No output from Explorer task"
@@ -49,11 +69,18 @@ command = {
     "dependencies": [],  # Não há dependências adicionais
     "executors": ["default"],  # Compatível com o executor padrão do agente
     "file_dependencies": [],  # Nenhum arquivo adicional necessário
-    "supported_os": ["windows"]  # Só funciona em Windows
+    "supported_os": ["windows"],  # Só funciona em Windows
+    "supported_ui_features": ["file_browser:open"]  # Proposta de nova feature para integração com a UI
 }
 
 # Função de ajuda (opcional, para documentação no Mythic)
 def help(self):
+    """
+    Fornece ajuda sobre o uso do comando.
+    
+    Returns:
+        str: Documentação do comando.
+    """
     return """
     Command: open_explorer
     Description: Opens Windows Explorer in the specified directory or the agent's current directory.

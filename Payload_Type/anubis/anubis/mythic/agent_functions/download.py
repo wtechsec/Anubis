@@ -1,76 +1,40 @@
-from mythic_container.MythicCommandBase import *
 import json
-from mythic_container.MythicRPC import *
 
+def download(self, task, data=None):
+    params = {"path": {"type": "str", "required": True, "description": "Path to download (e.g., C:\\file.txt)"}}
+    if data and "path" in data:
+        path = data["path"]
+    else:
+        return "Path parameter is required"
+    task_options = {"command": "download", "params": json.dumps({"path": path})}
+    response = self.create_tasking(task, task_options)
+    if response:
+        return f"Started task {task['id']} to download {path}"
+    else:
+        return "Failed to start task to download"
 
-class DownloadArguments(TaskArguments):
-    def __init__(self, command_line, **kwargs):
-        super().__init__(command_line, **kwargs)
-        self.args = [
-            CommandParameter(
-                name="file", 
-                type=ParameterType.String, 
-                description="File to download.",
-                parameter_group_info=[ParameterGroupInfo(
-                    required=True
-                )]
-            ),
-        ]
+def on_response(self, response, options=None):
+    if "download" in response:
+        return f"Downloaded {response['download']['full_path']}"
+    return "No output from download task"
 
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise Exception("Require a path to download.\n\tUsage: {}".format(DownloadCommand.help_cmd))
-        filename = ""
-        if self.command_line[0] == '"' and self.command_line[-1] == '"':
-            self.command_line = self.command_line[1:-1]
-            filename = self.command_line
-        elif self.command_line[0] == "'" and self.command_line[-1] == "'":
-            self.command_line = self.command_line[1:-1]
-            filename = self.command_line
-        elif self.command_line[0] == "{":
-            temp_json = json.loads(self.command_line)
-            # if "host" in temp_json:
-            #     # this means we have tasking from the file browser rather than the popup UI
-            #     # the medusa agent doesn't currently have the ability to do _remote_ listings, so we ignore it
-            # filename = temp_json["path"] + "/" + temp_json["file"]
-            filename = temp_json["file"]
-            # else:
-            #     raise Exception("Unsupported JSON")
-        else:
-            filename = self.command_line
+command = {
+    "command": "download",
+    "description": "Downloads a file from the specified path.",
+    "author": "YourName",
+    "version": "1.0",
+    "parameters": [{"name": "path", "type": "str", "required": True, "description": "The full path to download (e.g., C:\\file.txt)"}],
+    "dependencies": [],
+    "executors": ["default"],
+    "file_dependencies": [],
+    "supported_os": ["windows"],
+    "supported_ui_features": ["file_browser:download"]
+}
 
-        if filename != "":
-            self.args[0].value = filename
-        
-
-class DownloadCommand(CommandBase):
-    cmd = "download"
-    needs_admin = False
-    help_cmd = "download {path to remote file}"
-    description = "Download a file from the victim machine to the Mythic server in chunks (no need for quotes in the path)."
-    version = 1
-    supported_ui_features = ["file_browser:download"]
-    is_download_file = True
-    author = "@ajpc500"
-    parameters = []
-    attackmapping = ["T1020", "T1030", "T1041"]
-    argument_class = DownloadArguments
-    browser_script = BrowserScript(script_name="download", author="@its_a_feature_", for_new_ui=True)
-    attributes = CommandAttributes(
-        supported_python_versions=["Python 2.7", "Python 3.8"],
-        supported_os=[SupportedOS.MacOS, SupportedOS.Windows, SupportedOS.Linux ],
-    )
-
-
-    async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        response = PTTaskCreateTaskingMessageResponse(
-            TaskID=taskData.Task.ID,
-            Success=True,
-        )
-        download_file = taskData.args.get_arg("file")
-        response.DisplayParams = f"{download_file}"
-        return response
-
-    async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
-        return resp
+def help(self):
+    return """
+    Command: download
+    Description: Downloads a file from the specified path.
+    Usage: download path=<file_path>
+    Example: download path=C:\\file.txt
+    """

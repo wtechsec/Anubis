@@ -1,70 +1,59 @@
-import os
+from mythic_container.MythicCommandBase import *
 import json
+from mythic_container.MythicRPC import *
+import sys
 
-def open_explorer(self, task_id, data=None):
-    """
-    Abre o Explorador de Arquivos (Windows Explorer) em um diretório especificado ou no diretório atual do agente.
-    
-    Args:
-        task_id (str): ID da tarefa enviada pelo Mythic.
-        data (dict, optional): Dados da tarefa no formato JSON (ex.: {'host': '...', 'path': '...', 'file': '...', 'full_path': '...'}).
-    
-    Returns:
-        str: JSON com o resultado da operação.
-    """
-    # Processa os parâmetros da tarefa
-    path = None
-    if data and isinstance(data, dict):
-        if 'full_path' in data and data['full_path']:
-            path = data['full_path']
-        elif 'path' in data and data['path']:
-            path = data['path']
-        # Ignora 'file' e 'host' pois não são relevantes para abrir o Explorer
+class OpenExplorerArguments(TaskArguments):
+    def __init__(self, command_line, **kwargs):
+        super().__init__(command_line, **kwargs)
+        self.args = [
+            CommandParameter(
+                name="path",
+                type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(
+                    required=False
+                )],
+                description="Path of directory to open in Explorer",
+            )
+        ]
 
-    try:
-        if path:
-            # Normaliza o caminho para garantir que seja válido
-            full_path = os.path.abspath(path) if os.path.exists(path) else os.path.abspath(os.path.join(self.current_directory, path))
-            if os.path.exists(full_path):
-                os.startfile(full_path)
-                output = f"Opened Explorer at {full_path}"
-                success = True
+    async def parse_arguments(self):
+        if len(self.command_line) > 0:
+            if self.command_line[0] == '{':
+                temp_json = json.loads(self.command_line)
+                if "host" in temp_json:
+                    self.add_arg("path", temp_json["path"] + "\\" + temp_json["file"])  # Windows uses \
+                else:
+                    self.add_arg("path", temp_json["path"])
             else:
-                output = f"Path {full_path} does not exist"
-                success = False
+                self.add_arg("path", self.command_line)
         else:
-            # Abre o Explorer no diretório atual
-            os.startfile(self.current_directory)
-            output = f"Opened Explorer at {self.current_directory}"
-            success = True
+            self.add_arg("path", ".")
 
-        # Prepara a resposta no formato esperado pelo Mythic
-        response = {
-            "action": "post_response",
-            "responses": [
-                {
-                    "task_id": task_id,
-                    "user_output": output,
-                    "success": success
-                }
-            ]
-        }
+class OpenExplorerCommand(CommandBase):
+    cmd = "open_explorer"
+    needs_admin = False
+    help_cmd = "open_explorer [/path/to/directory]"
+    description = "Opens Windows Explorer in the specified directory or the agent's current directory."
+    version = 1
+    author = "@YourName"
+    attackmapping = ["T1548"]
+    supported_ui_features = ["file_browser:open"]
+    is_file_browse = True
+    argument_class = OpenExplorerArguments
+    browser_script = BrowserScript(script_name="open_explorer", author="@its_a_feature_", for_new_ui=True)
+    attributes = CommandAttributes(
+        supported_python_versions=["Python 2.7", "Python 3.8"],
+        supported_os=[SupportedOS.Windows],
+    )
 
-        # Envia a atualização da tarefa para o Mythic
-        self.sendTaskOutputUpdate(task_id, output)
-        return json.dumps(response)
+    async def create_tasking(self, task: MythicTask) -> MythicTask:
+        if task.args.has_arg("path"):
+            task.display_params = task.args.get_arg("path")
+        else:
+            task.display_params = "Current directory"
+        return task
 
-    except Exception as e:
-        error_msg = f"Failed to open Explorer: {str(e)}"
-        response = {
-            "action": "post_response",
-            "responses": [
-                {
-                    "task_id": task_id,
-                    "user_output": error_msg,
-                    "success": False
-                }
-            ]
-        }
-        self.sendTaskOutputUpdate(task_id, error_msg)
-        return json.dumps(response)
+    async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
+        resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+        return resp

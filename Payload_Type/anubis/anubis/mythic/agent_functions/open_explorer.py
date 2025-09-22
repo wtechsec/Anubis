@@ -1,6 +1,5 @@
 import os
 import json
-from datetime import datetime
 
 def open_explorer(self, task_id, data=None):
     """

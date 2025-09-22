@@ -1,79 +1,42 @@
-   def ls(self, task_id, **params):
-    try:
-        # Extrair o caminho do dicionário de parâmetros, usando None como padrão se não fornecido
-        path = params.get('path')
-        host = socket.gethostname()
-        if path:
-            full_path = os.path.abspath(path.replace('/', '\\')) if not path.startswith('\\') else path.replace('/', '\\')
-        else:
-            full_path = self.current_directory
-
-        if not os.path.exists(full_path):
-            return json.dumps({
-                "action": "post_response",
-                "responses": [{
-                    "task_id": task_id,
-                    "user_output": f"Path {full_path} does not exist",
-                    "file_browser": {
-                        "success": False,
-                        "host": host,
-                        "parent_path": os.path.dirname(full_path) or "",
-                        "name": os.path.basename(full_path)
-                    }
-                }]
-            })
-
-        entries = []
-        for item in os.listdir(full_path):
-            item_path = os.path.join(full_path, item)
-            stat = os.stat(item_path)
-            is_file = os.path.isfile(item_path)
-            permissions = {
-                "read": os.access(item_path, os.R_OK),
-                "write": os.access(item_path, os.W_OK),
-                "execute": os.access(item_path, os.X_OK)
-            }
-            entry = {
-                "is_file": is_file,
-                "permissions": permissions,
-                "name": item,
-                "access_time": int(stat.st_atime * 1000),
-                "modify_time": int(stat.st_mtime * 1000),
-                "size": stat.st_size if is_file else 0
-            }
-            entries.append(entry)
-
-        response = {
-            "action": "post_response",
-            "responses": [{
-                "task_id": task_id,
-                "file_browser": {
-                    "host": host,
-                    "is_file": False,
-                    "permissions": {"read": True, "write": True},
-                    "name": os.path.basename(full_path) or full_path,
-                    "parent_path": os.path.dirname(full_path) or "",
-                    "success": True,
-                    "access_time": int(os.stat(full_path).st_atime * 1000),
-                    "modify_time": int(os.stat(full_path).st_mtime * 1000),
-                    "size": 0,
-                    "update_deleted": True,
-                    "files": entries
-                }
-            }]
+def ls(self, task_id, path, file_browser=False):
+        if path == ".": file_path = self.current_directory
+        else: file_path = path if path[0] == os.sep \
+                else os.path.join(self.current_directory,path)
+        file_details = os.stat(file_path)
+        target_is_file = os.path.isfile(file_path)
+        target_name = os.path.basename(file_path.rstrip(os.sep)) if file_path != os.sep else os.sep
+        file_browser = {
+            "host": socket.gethostname(),
+            "is_file": target_is_file,
+            "permissions": {"octal": oct(file_details.st_mode)[-3:]},
+            "name": target_name if target_name not in [".", "" ] \
+                    else os.path.basename(self.current_directory.rstrip(os.sep)),        
+            "parent_path": os.path.abspath(os.path.join(file_path, os.pardir)),
+            "success": True,
+            "access_time": int(file_details.st_atime * 1000),
+            "modify_time": int(file_details.st_mtime * 1000),
+            "size": file_details.st_size,
+            "update_deleted": True,
         }
-        return json.dumps(response)
-    except Exception as e:
-        return json.dumps({
-            "action": "post_response",
-            "responses": [{
-                "task_id": task_id,
-                "user_output": f"Failed to list directory: {str(e)}",
-                "file_browser": {
-                    "success": False,
-                    "host": host,
-                    "parent_path": os.path.dirname(full_path) or "",
-                    "name": os.path.basename(full_path)
-                }
-            }]
-        })
+        files = []
+        if not target_is_file:
+            with os.scandir(file_path) as entries:
+                for entry in entries:
+                    file = {}
+                    file['name'] = entry.name
+                    file['is_file'] = True if entry.is_file() else False
+                    try:
+                        file_details = os.stat(os.path.join(file_path, entry.name))
+                        file["permissions"] = { "octal": oct(file_details.st_mode)[-3:]}
+                        file["access_time"] = int(file_details.st_atime * 1000)
+                        file["modify_time"] = int(file_details.st_mtime * 1000)
+                        file["size"] = file_details.st_size
+                    except OSError as e:
+                        pass
+                    files.append(file)  
+        file_browser["files"] = files
+        task = [task for task in self.taskings if task["task_id"] == task_id]
+        task[0]["file_browser"] = file_browser
+        output = { "files": files, "parent_path": os.path.abspath(os.path.join(file_path, os.pardir)), "name":  target_name if target_name not in  [".", ""] \
+                    else os.path.basename(self.current_directory.rstrip(os.sep))  }
+        return json.dumps(output)

@@ -1,4 +1,3 @@
-import json
 
 # Função principal do comando open_explorer
 def open_explorer(self, task, data=None):

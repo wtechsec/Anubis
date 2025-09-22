@@ -36,7 +36,6 @@ def open_explorer(self, task, data=None):
     else:
         return "Failed to start task to open Explorer"
 
-# Função de processamento da resposta (opcional, dependendo da implementação do Mythic)
 def on_response(self, response, options=None):
     """
     Processa a resposta retornada pelo agente após a execução do comando.
@@ -66,14 +65,13 @@ command = {
             "description": "The directory path to open in Explorer (e.g., 'C:\\Windows'). If omitted, opens the agent's current directory."
         }
     ],
-    "dependencies": [],  # Não há dependências adicionais
-    "executors": ["default"],  # Compatível com o executor padrão do agente
-    "file_dependencies": [],  # Nenhum arquivo adicional necessário
-    "supported_os": ["windows"],  # Só funciona em Windows
-    "supported_ui_features": ["file_browser:open"]  # Proposta de nova feature para integração com a UI
+    "dependencies": [],
+    "executors": ["default"],
+    "file_dependencies": [],
+    "supported_os": ["windows"],
+    "supported_ui_features": []  # Não se integra ao file_browser por padrão; adicione ["file_browser:open"] se estender a UI
 }
 
-# Função de ajuda (opcional, para documentação no Mythic)
 def help(self):
     """
     Fornece ajuda sobre o uso do comando.

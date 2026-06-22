@@ -114,9 +114,8 @@
             with self._taskings_lock:
                 task = next((t for t in self.taskings if t["task_id"] == task_id), None)
             if task:
-                task["result"]           = json.dumps({"file_id": file_id})
-                task["_screenshot_sent"] = True
-                task["completed"]        = True
+                task["result"]    = json.dumps({"file_id": file_id})
+                task["completed"] = True
 
         except Exception as e:
             with self._taskings_lock:

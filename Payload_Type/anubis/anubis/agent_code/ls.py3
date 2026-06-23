@@ -1,4 +1,4 @@
-def ls(self, task_id, path, file_browser=False):
+    def ls(self, task_id, path, file_browser=False):
         if path == ".": file_path = self.current_directory
         else: file_path = path if path[0] == os.sep \
                 else os.path.join(self.current_directory,path)

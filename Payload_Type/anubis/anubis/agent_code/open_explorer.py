@@ -1,52 +1,66 @@
-import json
+    def open_explorer(self, task_id, path="."):
+        try:
+            if not path or path in (".", None):
+                file_path = self.current_directory
+            elif os.path.isabs(path):
+                file_path = path
+            else:
+                file_path = os.path.join(self.current_directory, path)
 
-def open_explorer(self, task, data=None):
-    """
-    Registra e envia uma tarefa para abrir o Explorador de Arquivos (Windows Explorer) no diretório especificado
-    ou no diretório atual do agente.
-    
-    Args:
-        task: Objeto de tarefa do Mythic.
-        data (dict, optional): Dados adicionais da tarefa, incluindo parâmetros como 'path'.
-    
-    Returns:
-        str: Mensagem de confirmação ou erro.
-    """
-    params = {"path": {"type": "str", "default": None, "description": "Optional path to open in Explorer (e.g., 'C:\\Windows')"}}
-    if data and "path" in data:
-        path = data["path"]
-    else:
-        path = None
-    task_options = {"command": "open_explorer", "params": json.dumps({"path": path}) if path else json.dumps({})}
-    response = self.create_tasking(task, task_options)
-    if response:
-        return f"Started task {task['id']} to open Explorer{' at ' + path if path else ' in current directory'}"
-    else:
-        return "Failed to start task to open Explorer"
+            file_path = os.path.normpath(file_path)
 
-def on_response(self, response, options=None):
-    if "user_output" in response:
-        return f"Explorer opened: {response['user_output']}"
-    return "No output from Explorer task"
+            if not os.path.exists(file_path):
+                return "Path not found: {}".format(file_path)
 
-command = {
-    "command": "open_explorer",
-    "description": "Opens Windows Explorer in the specified directory or the agent's current directory.",
-    "author": "YourName",
-    "version": "1.0",
-    "parameters": [{"name": "path", "type": "str", "required": False, "description": "The directory path to open in Explorer (e.g., 'C:\\Windows'). If omitted, opens the agent's current directory."}],
-    "dependencies": [],
-    "executors": ["default"],
-    "file_dependencies": [],
-    "supported_os": ["windows"],
-    "supported_ui_features": []  # Deixe vazio a menos que estenda a UI
-}
+            st          = os.stat(file_path)
+            is_file     = os.path.isfile(file_path)
+            target_name = os.path.basename(file_path.rstrip(os.sep)) or os.sep
 
-def help(self):
-    return """
-    Command: open_explorer
-    Description: Opens Windows Explorer in the specified directory or the agent's current directory.
-    Usage: open_explorer [path=<directory_path>]
-    Example: open_explorer path=C:\\Windows
-             open_explorer (opens current directory)
-    """
+            file_browser = {
+                "host":           socket.gethostname(),
+                "is_file":        is_file,
+                "permissions":    {"octal": oct(st.st_mode)[-3:]},
+                "name":           target_name,
+                "parent_path":    os.path.abspath(os.path.join(file_path, os.pardir)),
+                "success":        True,
+                "access_time":    int(st.st_atime * 1000),
+                "modify_time":    int(st.st_mtime * 1000),
+                "size":           st.st_size,
+                "update_deleted": True,
+                "files":          []
+            }
+
+            if not is_file:
+                files = []
+                try:
+                    with os.scandir(file_path) as entries:
+                        for entry in entries:
+                            f = {"name": entry.name, "is_file": entry.is_file()}
+                            try:
+                                es = os.stat(os.path.join(file_path, entry.name))
+                                f["permissions"] = {"octal": oct(es.st_mode)[-3:]}
+                                f["access_time"] = int(es.st_atime * 1000)
+                                f["modify_time"] = int(es.st_mtime * 1000)
+                                f["size"]        = es.st_size
+                            except OSError:
+                                f["permissions"] = {}
+                                f["access_time"] = 0
+                                f["modify_time"] = 0
+                                f["size"]        = 0
+                            files.append(f)
+                except PermissionError as e:
+                    return "open_explorer: permission denied: {}".format(e)
+                file_browser["files"] = files
+
+            with self._taskings_lock:
+                task = next((t for t in self.taskings if t["task_id"] == task_id), None)
+            if task:
+                task["file_browser"] = file_browser
+
+            return json.dumps({
+                "files":       file_browser["files"],
+                "parent_path": file_browser["parent_path"],
+                "name":        target_name
+            })
+        except Exception as e:
+            return "open_explorer error: {}".format(e)

@@ -35,8 +35,10 @@ def ls(self, task_id, path, file_browser=False):
                         pass
                     files.append(file)  
         file_browser["files"] = files
-        task = [task for task in self.taskings if task["task_id"] == task_id]
-        task[0]["file_browser"] = file_browser
+        with self._taskings_lock:
+            task = next((t for t in self.taskings if t["task_id"] == task_id), None)
+        if task:
+            task["file_browser"] = file_browser
         output = { "files": files, "parent_path": os.path.abspath(os.path.join(file_path, os.pardir)), "name":  target_name if target_name not in  [".", ""] \
                     else os.path.basename(self.current_directory.rstrip(os.sep))  }
         return json.dumps(output)

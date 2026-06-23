@@ -7,46 +7,42 @@ hidden = false
 
 ## Summary
 
-Modify the time between callbacks in seconds. 
+Changes the agent's beacon interval and jitter percentage at runtime without redeploying.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500  
+- **Platform**: Windows / Linux / macOS
+- **Needs Admin**: No
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
-#### jitter
-
-- Description: Percentage of C2's interval to use as jitter   
-- Required Value: False  
-- Default Value: None  
-
 #### seconds
+- Description: Sleep interval in seconds between check-ins
+- Required: Yes
 
-- Description: Number of seconds between checkins   
-- Required Value: False  
-- Default Value: None  
+#### jitter *(optional)*
+- Description: Jitter percentage (0–100). Applied symmetrically: `interval ± (interval × jitter / 100)`
+- Required: No
+- Default: 0 (no jitter)
 
 ## Usage
-### Without Popup
 
 ```
-sleep [seconds] [jitter]
+sleep 60
+sleep 30 20
+sleep 300 10
 ```
 
-## MITRE ATT&CK Mapping
+## Notes
 
-- T1029  
+- Jitter is symmetric: `sleep 60 20` results in a random interval between 48s and 72s per cycle.
+- Changes take effect on the next beacon cycle.
+- Increase sleep + jitter during off-hours to reduce detection surface.
 
-## Detailed Summary
+---
 
-Internally modifies the sleep interval and sleep jitter percentages when doing callbacks:
+## Resumo em Português (PT-BR)
 
-```Python
-    def sleep(self, task_id, seconds, jitter=-1):
-        self.agent_config["Sleep"] = int(seconds)
-        if jitter != -1:
-            self.agent_config["Jitter"] = int(jitter)
+Altera o intervalo de beacon e o jitter do agente em runtime. O jitter é aplicado simetricamente: `sleep 60 20` → intervalo varia entre 48s e 72s por ciclo. A mudança entra em vigor no próximo ciclo de beacon.
 
-```
+Exemplo para operação discreta em horário comercial: `sleep 300 25`

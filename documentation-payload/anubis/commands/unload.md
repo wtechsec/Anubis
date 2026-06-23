@@ -7,36 +7,37 @@ hidden = false
 
 ## Summary
 
-Unload an existing capability from the agent. 
-     
-- Python Versions Supported: 2.7, 3.8     
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500  
+Removes a previously dynamically-loaded command from the running agent, reducing the capability footprint in memory.
+
+- **Platform**: Windows / Linux / macOS
+- **Needs Admin**: No
+- **MITRE ATT&CK**: T1030, T1129
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
 #### function
-
-- Description: function to unload
-- Required Value: True  
-- Default Value: None  
+- Description: Name of the command to unload
+- Required: Yes
 
 ## Usage
 
 ```
-unload function
+unload watch_dir
+unload dump_lsass
 ```
 
-## Detailed Summary
-Note that this will only unload the function from the instantiation of the Medusa agent class, it won't remove it from any on-disk script that was executed. So consider using this in a `load` then `unload` scenario.
+## Notes
 
-```Python
-    def unload(self, task_id, command):
-        delattr(medusa, command)
-        cmd_list = [{"action": "remove", "cmd": command}]
-        responses = [{ "task_id": task_id, "user_output": "Unloaded command: {}".format(command), "commands": cmd_list, "completed": True }]
-        message = { "action": "post_response", "responses": responses }
-        response_data = self.postMessageAndRetrieveResponse(message)
+- Only unloads the function from the running agent instance — does not affect the on-disk script.
+- Recommended pattern: `load` → use → `unload` to minimize exposure window.
+- Attempting to unload a built-in (non-dynamically-loaded) command will raise an error.
 
-```
+---
+
+## Resumo em Português (PT-BR)
+
+Remove um comando previamente carregado dinamicamente do agente em runtime. Reduz a superfície de capacidades expostas após uso.
+
+Padrão recomendado: `load` → usar → `unload` para minimizar a janela de exposição.

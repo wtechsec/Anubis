@@ -7,12 +7,16 @@ hidden = false
 
 ## Summary
 
-Lists the currently running jobs (aka long-running functions) for our agent.
+Lists all currently running long-lived background jobs in the agent.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500
+- **Platform**: Windows / Linux / macOS
+- **Needs Admin**: No
+- **Version**: 1.0
+- **Author**: @wtechsec
+
+### Arguments
+
+None.
 
 ## Usage
 
@@ -20,17 +24,17 @@ Lists the currently running jobs (aka long-running functions) for our agent.
 jobs
 ```
 
-## Detailed Summary
+## Notes
 
-Lists the long-running functions running for our agent, this omits the main thread, the jobs function itself and any threads associated with the SOCKS proxy (outside of the main SOCKS thread, which we do include):
+- Returns a list of `[command_name, task_id]` pairs for each active background job.
+- SOCKS internal threads (`a2m`/`m2a`) are excluded — only the main SOCKS task appears.
+- Use the returned task ID with `jobkill` to stop a specific job.
+- Commands that create background jobs: `download`, `watch_dir`, `socks`, `screenshot2`, `dump_lsass`.
 
-```Python
-    def jobs(self, task_id):
-        out = [t.name.split(":") for t in threading.enumerate() \
-            if t.name != "MainThread" and "a2m" not in t.name \
-            and "m2a" not in t.name and t.name != "jobs:{}".format(task_id) ]
-        if len(out) > 0: return { "jobs": out }
-        else: return "No long running jobs!"
+---
 
-```
+## Resumo em Português (PT-BR)
 
+Lista todos os jobs de longa duração em execução no agente. Retorna pares `[nome_do_comando, task_id]` por job ativo. Threads internas do SOCKS (`a2m`/`m2a`) são omitidas.
+
+Use o task_id retornado com `jobkill` para parar um job específico.

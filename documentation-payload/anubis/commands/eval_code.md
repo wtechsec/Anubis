@@ -7,34 +7,39 @@ hidden = false
 
 ## Summary
 
-Send and interpret new Python code.
+Executes arbitrary Python code in the agent's interpreter using `exec()`. Provides live Python access within the agent context, with full access to agent attributes and imported modules.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500
+- **Platform**: Windows / Linux / macOS
+- **Needs Admin**: No
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
 #### code
-
-- Description: code to execute
-- Required Value: True  
-- Default Value: None  
+- Description: Python code to execute in the agent interpreter
+- Required: Yes
 
 ## Usage
 
 ```
-eval_code {code to execute}
+eval_code import os; print(os.listdir('C:\\'))
+eval_code self.current_directory = 'C:\\Windows'
+eval_code import subprocess; print(subprocess.check_output('whoami /all', shell=True).decode())
+eval_code print(self.agent_config)
 ```
 
-## Detailed Summary
+## Notes
 
-Uses the `eval()` function to interpret a string containing arbitrary Python code:
+- Has full access to `self` (the agent object), allowing direct manipulation of agent state, config, and taskings.
+- Output is captured via stdout redirection.
+- Errors in eval code can cause exceptions in the agent thread — use carefully.
+- Useful for ad-hoc operations not covered by existing commands without needing to `load` a new command.
 
-```Python
-    def eval_code(self, task_id, command):
-        return eval(command)
+---
 
-```
+## Resumo em Português (PT-BR)
 
+Executa código Python arbitrário no intérprete do agente via `exec()`. Acesso completo ao objeto `self` do agente — permite manipular estado interno, importar módulos e executar lógica customizada sem carregar um novo comando.
+
+Útil para operações pontuais que não justificam um `load` de novo comando. Erros podem lançar exceções na thread do agente — use com cuidado.

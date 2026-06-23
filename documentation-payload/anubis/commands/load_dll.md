@@ -7,46 +7,48 @@ hidden = false
 
 ## Summary
 
-Uses Python's `ctypes` library to load a DLL on disk and execute it with a given export function.
+Loads a DLL from disk into the agent's process using `ctypes.WinDLL` (LoadLibrary) and optionally calls a specified export function.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500
+- **Platform**: Windows only
+- **Needs Admin**: No
+- **MITRE ATT&CK**: T1059.006 / T1127
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
 #### path
+- Description: Full or relative path to the DLL on the target system
+- Required: Yes
 
-- Description: path to DLL on target file system
-- Required Value: True  
-- Default Value: None  
-
-#### export
-
-- Description: exported function to execute
-- Required Value: True  
-- Default Value: None  
-
+#### export *(optional)*
+- Description: Name of the export function to call after loading
+- Required: No
 
 ## Usage
 
 ```
-load_dll path/to/dll function_exported
+load_dll C:\Windows\Temp\implant.dll
+load_dll C:\Windows\Temp\loader.dll Run
 ```
 
-## Detailed Summary
+## MITRE ATT&CK Mapping
 
-Uses the `ctypes` library to execute a DLL with its supported function. This expects a DLL that returns an int value and doesn't exit the process upon completion (because that'll kill the agent too!):
+- **T1059.006** — Command and Scripting Interpreter: Python
+- **T1127** — Trusted Developer Utilities Proxy Execution
 
-```Python
-    def load_dll(self, task_id, dllpath, dllexport):
-        from ctypes import WinDLL
-        dll_file_path = dllpath if dllpath[0] == os.sep \
-                else os.path.join(self.current_directory,dllpath)
-        loaded_dll = WinDLL(dll_file_path)
-        eval("{}.{}()".format("loaded_dll",dllexport))
-        return "[*] {} Loaded.".format(dllpath)
+## Notes
 
-```
+- The export function must return an integer value and **must not** call `ExitProcess` — that would also terminate the agent process.
+- Useful for loading reflective DLL implants or custom loaders without spawning a new process.
+- Combine with `upload` to stage the DLL to the target first, then load it.
 
+---
+
+## Resumo em Português (PT-BR)
+
+Carrega uma DLL do disco no processo do agente via `ctypes.WinDLL` (LoadLibrary) e, opcionalmente, chama um export especificado.
+
+**Importante:** o export não deve chamar `ExitProcess` — isso encerraria também o processo do agente.
+
+Fluxo típico: `upload` → `load_dll` para staging e execução sem criar novo processo.

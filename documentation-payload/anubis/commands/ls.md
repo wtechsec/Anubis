@@ -7,121 +7,54 @@ hidden = false
 
 ## Summary
 
-Get attributes about a file and display it to the user via API calls. No need for quotes and relative paths are fine 
+Lists files and attributes of a specified path. Integrates with Mythic's file browser (`file_browser:list`), populating the directory tree with per-entry metadata.
 
-- Python Versions Supported: 2.7, 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500  
+- **Platform**: Windows
+- **Needs Admin**: No
+- **MITRE ATT&CK**: T1083 — File and Directory Discovery
+- **UI Feature**: `file_browser:list`
+- **Version**: 1.0
+- **Author**: @wtechsec
 
 ### Arguments
 
 #### path
-
-- Description: Path of file or folder on the current system to list   
-- Required Value: True  
-- Default Value: .  
+- Description: Path of file or folder to list. Accepts absolute or relative paths.
+- Required: No
+- Default: `.` (current directory)
 
 ## Usage
 
 ```
-ls /path/to/file
+ls
+ls C:\Users
+ls C:\Windows\System32
+ls ..\Documents
 ```
 
 ## MITRE ATT&CK Mapping
 
-- T1106  
-- T1083  
+- **T1083** — File and Directory Discovery
 
 ## Detailed Summary
-This command used python `os` library functions to get the contents of directories and metadata of files. 
 
-Python 2.7:
-```Python
-    def ls(self, task_id, path, file_browser=False):
-        if path == ".": file_path = self.current_directory
-        else: file_path = path if path[0] == os.sep \
-                else os.path.join(self.current_directory,path)
-        file_details = os.stat(file_path)
-        target_is_file = os.path.isfile(file_path)
-        target_name = os.path.basename(file_path.rstrip(os.sep))
-        file_browser = {
-            "host": socket.gethostname(),
-            "is_file": target_is_file,
-            "permissions": {"octal": oct(file_details.st_mode)[-3:]},
-            "name": target_name if target_name != "." \
-                    else os.path.basename(self.current_directory.rstrip(os.sep)),            "parent_path": os.path.abspath(os.path.join(file_path, os.pardir)),
-            "success": True,
-            "access_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_atime)),
-            "modify_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_mtime)),
-            "size": file_details.st_size,
-            "update_deleted": True,
-        }
-        files = []
-        if not target_is_file:
-            for entry in os.listdir(file_path):
-                full_path = os.path.join(file_path, entry)
-                file = {}
-                file['name'] = entry 
-                file['is_file'] = True if os.path.isfile(full_path) else False
-                try:
-                    file_details = os.stat(full_path)
-                    file["permissions"] = { "octal": oct(file_details.st_mode)[-3:]}
-                    file["access_time"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_atime))
-                    file["modify_time"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_mtime))
-                    file["size"] = file_details.st_size
-                except OSError as e:
-                    pass
-                files.append(file)
-        file_browser["files"] = files
-        task = [task for task in self.taskings if task["task_id"] == task_id]
-        task[0]["file_browser"] = file_browser
-        return { "files": files }
-```
+Uses Python `os` library functions to stat the target path and enumerate directory contents. Returns per-entry metadata:
 
-Python 3.8
+| Field | Description |
+|---|---|
+| `name` | Entry filename |
+| `is_file` | Boolean — true for files, false for directories |
+| `size` | File size in bytes |
+| `permissions` | Octal permission string (e.g. `644`) |
+| `access_time` | Last access timestamp (milliseconds epoch) |
+| `modify_time` | Last modification timestamp (milliseconds epoch) |
 
-```Python
-    def ls(self, task_id, path, file_browser=False):
-        if path == ".": file_path = self.current_directory
-        else: file_path = path if path[0] == os.sep \
-                else os.path.join(self.current_directory,path)
-        file_details = os.stat(file_path)
-        target_is_file = os.path.isfile(file_path)
-        target_name = os.path.basename(file_path.rstrip(os.sep))
-        file_browser = {
-            "host": socket.gethostname(),
-            "is_file": target_is_file,
-            "permissions": {"octal": oct(file_details.st_mode)[-3:]},
-            "name": target_name if target_name != "." \
-                    else os.path.basename(self.current_directory.rstrip(os.sep)),            "parent_path": os.path.abspath(os.path.join(file_path, os.pardir)),
-            "success": True,
-            "access_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_atime)),
-            "modify_time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_mtime)),
-            "size": file_details.st_size,
-            "update_deleted": True,
-        }
-        files = []
-        if not target_is_file:
-            with os.scandir(file_path) as entries:
-                for entry in entries:
-                    file = {}
-                    file['name'] = entry.name
-                    file['is_file'] = True if entry.is_file() else False
-                    try:
-                        file_details = os.stat(os.path.join(file_path, entry.name))
-                        file["permissions"] = { "octal": oct(file_details.st_mode)[-3:]}
-                        file["access_time"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_atime))
-                        file["modify_time"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file_details.st_mtime))
-                        file["size"] = file_details.st_size
-                    except OSError as e:
-                        pass
-                    files.append(file)  
-        file_browser["files"] = files
-        task = [task for task in self.taskings if task["task_id"] == task_id]
-        task[0]["file_browser"] = file_browser
-        return { "files": files }
+The `file_browser` struct is also pushed to the active task, populating Mythic's file browser UI tree. From the browser, per-entry actions include: **View Permissions**, **List Contents** (`ls`), **Download File** (`download`).
 
-```
+---
 
-This command helps populate the file browser, which is where all this data can be seen.
+## Resumo em Português (PT-BR)
+
+Lista arquivos e atributos de um path. Retorna por entrada: nome, tamanho, permissões (octal), timestamp de acesso e modificação, flag arquivo/diretório. Popula o file browser interativo do Mythic com estes metadados.
+
+Ações disponíveis no file browser por entrada: **View Permissions**, **List Contents** (re-executa `ls`), **Download File** (aciona `download`).

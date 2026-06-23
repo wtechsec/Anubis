@@ -7,52 +7,34 @@ hidden = false
 
 ## Summary
 
-This uses the ctypes library to interface with Windows API to terminate a process with a specified PID.
+Terminates a process by PID using `NtTerminateProcess` (ntdll direct call). Integrates with Mythic's process browser (`process_browser:kill`).
 
-- Python Versions Supported: 3.8
-- Needs Admin: False  
-- Version: 1  
-- Author: @ajpc500  
+- **Platform**: Windows only
+- **Needs Admin**: No (for user-accessible processes; elevation required for system processes)
+- **UI Feature**: `process_browser:kill`
+- **Version**: 1.0
+- **Author**: @wtechsec
+
+### Arguments
+
+#### process_id
+- Description: PID of the process to terminate
+- Required: Yes
 
 ## Usage
 
 ```
-kill process_id
+kill 1234
 ```
-
 
 ## Detailed Summary
-This function takes a given PID and attempts to open a process handle and terminate it.
 
-```Python
-    def kill(self, task_id, process_id):
-        import ctypes, ctypes.wintypes
-        from ctypes import GetLastError
+Opens a handle to the target process via `OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION)`, then calls `TerminateProcess`. The handle is closed after termination.
 
-        NTSTATUS = ctypes.wintypes.LONG
+From Mythic's Process Browser, right-click any process and select **Kill** to task this command directly.
 
-        def _check_bool(result, func, args):
-            if not result:
-                raise ctypes.WinError(ctypes.get_last_error())
-            return args
-        
-        Kernel32 = ctypes.WinDLL('kernel32.dll')
-        OpenProcess = Kernel32.OpenProcess
-        OpenProcess.restype = ctypes.wintypes.HANDLE
-        CloseHandle = Kernel32.CloseHandle
-        CloseHandle.errcheck = _check_bool
-        TerminateProcess = Kernel32.TerminateProcess
-        TerminateProcess.restype = ctypes.wintypes.BOOL
+---
 
-        PROCESS_TERMINATE = 0x0001
-        PROCESS_QUERY_INFORMATION = 0x0400
-        
-        try:
-            hProcess = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION, False, process_id)
-            if hProcess:
-                TerminateProcess(hProcess, 1)
-                CloseHandle(hProcess)    
-        except Exception as e:
-            return e
+## Resumo em Português (PT-BR)
 
-```
+Encerra um processo por PID via `OpenProcess` + `TerminateProcess`. Disponível no Process Browser do Mythic: clique direito em qualquer processo → **Kill**.

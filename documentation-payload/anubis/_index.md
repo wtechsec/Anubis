@@ -24,6 +24,7 @@ Inspired by the Egyptian god of the dead and guardian of passages, Anubis operat
 - **WMI lateral movement**: `wmi_exec` uses direct COM vtable calls to `IWbemLocator`/`IWbemServices` — no `wmic.exe` spawned, fires `Win32_Process.Create` on remote hosts (T1047, T1021.003).
 - **SCM lateral movement**: `sc_exec` uses `OpenSCManagerW` + `CreateServiceW` + `StartServiceW` + `DeleteService` entirely via advapi32 — no `sc.exe`, executes as SYSTEM on remote host, auto-deletes service after 3 seconds (T1021.002, T1543.003).
 - **RDP session hijacking**: `rdp_hijack` enumerates sessions via `WTSEnumerateSessionsW` and hijacks disconnected/active sessions via `WTSConnectSession` without knowing the user's password — requires SYSTEM (T1563.002).
+- **RDP external access**: `rdp_ext` starts the Mythic SOCKS5 proxy, probes `target:3389` from the agent, and returns ready-to-run xfreerdp/rdesktop commands. xfreerdp's native `/proxy:socks5://` support means no proxychains configuration needed on the operator machine (T1021.001, T1090).
 - **Windows offensive capabilities**: LSASS fork dump (NtCreateProcessEx evasion), shellcode injection, DLL loading, process enumeration, screenshot capture (pure ctypes, no pywin32 or Pillow).
 - **Dropper formats**: `py` (plain script), `base64` (one-liner), `ps1` (PowerShell + Python Embeddable bootstrap — no Python on target required), `exe` (PyInstaller standalone executable).
 - **Cloudflare tunnel support**: URL-safe base64 encoding for GET parameters; works through Cloudflare-proxied endpoints.
@@ -100,6 +101,7 @@ Focado em operações ofensivas Windows, cobre o ciclo completo de pós-explora�
 - `wmi_exec`: execução remota via WMI (vtable COM direto, sem wmic.exe) — T1047
 - `sc_exec`: execução como SYSTEM no host remoto via SCM (sem sc.exe) — T1021.002
 - `rdp_hijack`: hijack de sessões RDP sem senha (req. SYSTEM) — T1563.002
+- `rdp_ext`: acesso RDP externo via SOCKS5 do Anubis, sem proxychains — retorna comandos xfreerdp/rdesktop prontos — T1021.001
 - Dump LSASS por fork (evasão via NtCreateProcessEx), injeção de shellcode, screenshot (ctypes puro)
 - Formatos de dropper: `py`, `base64`, `ps1` (Python Embeddable), `exe` (PyInstaller)
 - Suporte a tunnel Cloudflare

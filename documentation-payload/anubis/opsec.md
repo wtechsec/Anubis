@@ -126,6 +126,33 @@ CloseServiceHandle × 2
 
 ---
 
+### RDP External Access (`rdp_ext` — T1021.001 / T1090)
+
+```
+Operator (Kali) → Mythic server :7005 (SOCKS5) → C2 channel → Agent → target:3389
+```
+
+**Mythic handler**: `SendMythicRPCProxyStartCommand(PortType="socks", LocalPort=7005)` — Mythic opens SOCKS5 on the server. Idempotent: safe to call if already running.
+
+**Agent task**: TCP probe `target:3389` with 5s timeout → returns three connection methods.
+
+**Detection profile:**
+
+| Point | Description |
+|---|---|
+| Mythic server | SOCKS5 listener on TCP/7005 — traffic is the existing C2 HTTP channel (no new network path) |
+| Agent host | Outbound TCP to `target:3389` — same as any RDP connection from that host |
+| Target host | Standard RDP negotiation (EID 4624 Logon Type 10 if auth succeeds) |
+| Network | RDP traffic tunneled inside the C2 HTTP/TLS stream — not visible as raw RDP to network sensors |
+
+**OPSEC notes:**
+- xfreerdp `/proxy:socks5://127.0.0.1:7005` avoids spawning proxychains processes — cleaner on the operator side
+- The SOCKS5 port (7005) is only exposed on the Mythic server's localhost interface by default — not reachable externally
+- RDP traffic volume (~500 KB/s for active session) may stand out in the C2 beacon traffic profile
+- Use `socks stop 7005` after the session to close the listener
+
+---
+
 ### RDP Session Hijacking (`rdp_hijack` — T1563.002)
 
 ```
@@ -216,6 +243,13 @@ NtCreateProcessEx(ParentProcess=lsass_handle)
 - Sem `wmic.exe` — sem EID 4688 de criação de processo para wmic
 - Gera entradas no log `Microsoft-Windows-WMI-Activity/Operational` no alvo
 - Sysmon EID 19/20/21 (event subscription) não é ativado — `ExecMethod` é diferente de WMI event subscription
+
+### RDP Ext (T1021.001)
+- Tráfego RDP tunnelado no canal C2 HTTP existente — não visível como RDP para sensores de rede
+- xfreerdp `/proxy:socks5://` elimina necessidade de proxychains no operador
+- EID 4624 (Logon Type 10) gerado no alvo quando autenticação RDP é bem-sucedida
+- Porta SOCKS5 (7005) fica no loopback do servidor Mythic — não exposta externamente
+- Use `socks stop 7005` após a sessão
 
 ### SC Exec (T1021.002)
 - Gera System EID **7045** no alvo (serviço instalado) — nome do serviço é randômico (8 hex chars)

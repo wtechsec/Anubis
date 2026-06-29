@@ -102,6 +102,7 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 | `wmi_exec` | Windows | T1047, T1021.003 | Remote exec via WMI COM vtable — no wmic.exe | Execução remota WMI sem wmic.exe — via vtable COM |
 | `sc_exec` | Windows | T1021.002, T1543.003 | Remote SYSTEM exec via SCM API — no sc.exe | Execução SYSTEM via SCM API — sem sc.exe |
 | `rdp_hijack` | Windows | T1563.002 | List/hijack RDP sessions without password (req. SYSTEM) | Lista/hijacka sessões RDP sem senha (req. SYSTEM) |
+| `rdp_ext` | All | T1021.001, T1090 | RDP access via SOCKS5 tunnel — returns xfreerdp/rdesktop commands | Acesso RDP via tunnel SOCKS5 — retorna comandos prontos |
 
 ### Reconnaissance
 

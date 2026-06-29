@@ -125,16 +125,21 @@ class RdpExtCommand(CommandBase):
         socks_port = taskData.args.get_arg("socks_port") or 7005
 
         # ── Inicia SOCKS5 no servidor Mythic ──────────────────────────────────
+        # "address already in use" = SOCKS5 já está ativo → apenas informa, não bloqueia
         socks_resp = await SendMythicRPCProxyStartCommand(MythicRPCProxyStartMessage(
             TaskID=taskData.Task.ID,
             PortType="socks",
             LocalPort=socks_port,
         ))
         if not socks_resp.Success:
+            already = "already in use" in (socks_resp.Error or "").lower() or \
+                      "already in use" in (socks_resp.Error or "")
+            msg = "[*] SOCKS5 já ativo na porta {} — reutilizando tunnel existente.\n".format(
+                socks_port) if already else \
+                "[!] SOCKS5 aviso: {}\n".format(socks_resp.Error)
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=taskData.Task.ID,
-                Response="[*] SOCKS5 nota (pode já estar ativo): {}\n".format(
-                    socks_resp.Error).encode()
+                Response=msg.encode()
             ))
 
         # ── display_params ─────────────────────────────────────────────────────

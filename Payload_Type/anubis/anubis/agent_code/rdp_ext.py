@@ -160,12 +160,12 @@
             probe_err = str(e)
 
         if not reachable:
-            results.append(
+            results.append((
                 "\n[-] TCP {}:{} — UNREACHABLE\n"
                 "    Erro : {}\n"
                 "[!] TermService pode ainda estar subindo — aguarde 10s e tente:\n"
                 "    rdp_ext {} {} (sem re-configurar)"
-            ).format(target, rdp_port, probe_err, target, rdp_port)
+            ).format(target, rdp_port, probe_err, target, rdp_port))
             return "\n".join(results)
 
         results.append("\n[+] TCP {}:{} — REACHABLE".format(target, rdp_port))

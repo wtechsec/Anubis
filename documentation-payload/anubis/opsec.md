@@ -126,30 +126,44 @@ CloseServiceHandle × 2
 
 ---
 
-### RDP External Access (`rdp_ext` — T1021.001 / T1090)
+### RDP Self-Setup + Access (`rdp_ext` — T1021.001 / T1090 / T1562.004)
 
 ```
-Operator (Kali) → Mythic server :7005 (SOCKS5) → C2 channel → Agent → target:3389
+Agent host (Windows)
+  1. winreg   → fDenyTSConnections = 0          (enable RDP)
+  2. winreg   → RDP-Tcp\PortNumber = 6000        (change port)
+  3. netsh    → add rule AnubisRDP-6000 TCP/in   (firewall)
+  4. advapi32 → TermService stop → start (SCM)   (restart service)
+  5. socket   → probe target:6000                (confirm listening)
+       ↕ C2 channel (HTTP/TLS)
+Mythic server → SOCKS5 :7005
+       ↕ xfreerdp /proxy:socks5://127.0.0.1:7005
+Operator (Kali)
 ```
 
-**Mythic handler**: `SendMythicRPCProxyStartCommand(PortType="socks", LocalPort=7005)` — Mythic opens SOCKS5 on the server. Idempotent: safe to call if already running.
+**Mythic handler** (`create_go_tasking`): `SendMythicRPCProxyStartCommand(PortType="socks", LocalPort=7005)` before the agent task runs. Idempotent.
 
-**Agent task**: TCP probe `target:3389` with 5s timeout → returns three connection methods.
+**Agent task**: four sequential Windows API operations, then TCP probe on `target:6000`.
 
 **Detection profile:**
 
-| Point | Description |
-|---|---|
-| Mythic server | SOCKS5 listener on TCP/7005 — traffic is the existing C2 HTTP channel (no new network path) |
-| Agent host | Outbound TCP to `target:3389` — same as any RDP connection from that host |
-| Target host | Standard RDP negotiation (EID 4624 Logon Type 10 if auth succeeds) |
-| Network | RDP traffic tunneled inside the C2 HTTP/TLS stream — not visible as raw RDP to network sensors |
+| Event | Host | Condition |
+|---|---|---|
+| Security EID **4946** | Agent host | "A rule was added to the Windows Firewall exception list" — always |
+| System EID **7036** | Agent host | TermService entered stopped/running state — always |
+| Security EID **4657** | Agent host | Registry value modified (`fDenyTSConnections`, `PortNumber`) — requires Object Access audit |
+| Security EID **4624** Logon Type 10 | Agent host | RDP logon when operator connects (always) |
+| Security EID **4625** | Agent host | Failed logon (if wrong credentials) |
+| Network | Sensor | RDP traffic inside C2 HTTP/TLS stream — **not visible** as raw TCP/6000 to network sensors |
 
 **OPSEC notes:**
-- xfreerdp `/proxy:socks5://127.0.0.1:7005` avoids spawning proxychains processes — cleaner on the operator side
-- The SOCKS5 port (7005) is only exposed on the Mythic server's localhost interface by default — not reachable externally
-- RDP traffic volume (~500 KB/s for active session) may stand out in the C2 beacon traffic profile
-- Use `socks stop 7005` after the session to close the listener
+- **Noisy sequence**: registry write → firewall rule → service restart generates 3+ events in quick succession. High-fidelity SIEM correlations may alert on this pattern.
+- **TermService restart disconnects active sessions** — any user currently in an RDP session will be dropped. Confirm no active sessions before running (`rdp_hijack 0` to list).
+- **Port 6000** avoids default IDS signatures targeting TCP/3389; change with `port` parameter if 6000 is also monitored.
+- **Firewall rule name** (`AnubisRDP-6000`) is static — blend in by running `rdp_ext` with a `svc_name`-style random name if the environment has SIEM rules on rule name patterns.
+- **xfreerdp `/proxy:socks5://`** eliminates proxychains process on operator side — no additional process noise.
+- **SOCKS5 port 7005** is bound to Mythic server's loopback interface — not exposed externally.
+- **Cleanup**: `socks stop 7005` closes the listener. Registry port and firewall rule persist after session — restore if required by engagement rules.
 
 ---
 
@@ -244,12 +258,13 @@ NtCreateProcessEx(ParentProcess=lsass_handle)
 - Gera entradas no log `Microsoft-Windows-WMI-Activity/Operational` no alvo
 - Sysmon EID 19/20/21 (event subscription) não é ativado — `ExecMethod` é diferente de WMI event subscription
 
-### RDP Ext (T1021.001)
-- Tráfego RDP tunnelado no canal C2 HTTP existente — não visível como RDP para sensores de rede
-- xfreerdp `/proxy:socks5://` elimina necessidade de proxychains no operador
-- EID 4624 (Logon Type 10) gerado no alvo quando autenticação RDP é bem-sucedida
-- Porta SOCKS5 (7005) fica no loopback do servidor Mythic — não exposta externamente
-- Use `socks stop 7005` após a sessão
+### RDP Ext — T1021.001 / T1562.004
+- Sequência ruidosa: escrita no registro + regra de firewall + restart de serviço gera EID 4946/4657/7036 em rápida sucessão — correlação SIEM pode alertar
+- **Restart do TermService desconecta sessões RDP ativas** — confirme com `rdp_hijack 0` antes de rodar
+- Porta 6000 evita assinaturas padrão de IDS para TCP/3389; altere se 6000 também for monitorado
+- xfreerdp `/proxy:socks5://` elimina processo proxychains no operador — menos ruído
+- Regra de firewall (`AnubisRDP-6000`) e porta no registro persistem após a sessão — restaure se necessário
+- `socks stop 7005` fecha o listener SOCKS5 no servidor Mythic após uso
 
 ### SC Exec (T1021.002)
 - Gera System EID **7045** no alvo (serviço instalado) — nome do serviço é randômico (8 hex chars)

@@ -9,9 +9,9 @@
 
 ## Overview / Visão Geral
 
-**EN:** Anubis is a cross-platform Python C2 agent for the [Mythic](https://github.com/its-a-feature/Mythic) framework, built for Red Team operations and adversary simulation. Supports Python 3.8 on Windows, Linux, and macOS, with a focus on Windows offensive capabilities.
+**EN:** Anubis is a cross-platform Python C2 agent for the [Mythic](https://github.com/its-a-feature/Mythic) framework, built for Red Team operations and adversary simulation. Supports Python 3.8 on Windows, Linux, and macOS, with a focus on Windows offensive capabilities including credential access, lateral movement, and RDP session hijacking.
 
-**PT-BR:** Anubis é um agente C2 Python para o framework [Mythic](https://github.com/its-a-feature/Mythic), desenvolvido para operações de Red Team e simulação de adversários. Suporta Python 3.8 em Windows, Linux e macOS, com foco em capacidades ofensivas para Windows.
+**PT-BR:** Anubis é um agente C2 Python para o framework [Mythic](https://github.com/its-a-feature/Mythic), desenvolvido para operações de Red Team e simulação de adversários. Suporta Python 3.8 em Windows, Linux e macOS, com foco em capacidades ofensivas Windows: acesso a credenciais, movimentação lateral e hijack de sessões RDP.
 
 Na mitologia egípcia, Anúbis era o guardião das passagens entre mundos. Aqui assume o papel de intermediário furtivo entre operador e alvo — operando na fronteira entre segurança e intrusão controlada.
 
@@ -25,10 +25,15 @@ Na mitologia egípcia, Anúbis era o guardião das passagens entre mundos. Aqui 
 | Dynamic loading | Load/unload commands at runtime via C2 | Carrega/descarrega comandos em runtime via C2 |
 | SOCKS5 proxy | Reverse tunnel through C2 channel | Túnel reverso pelo canal C2 |
 | File transfer | Chunked upload/download, stoppable | Upload/download em chunks, interrompível |
+| Token impersonation | Steal process tokens for privilege escalation (T1134) | Roubo de token de processo para elevação (T1134) |
+| WMI lateral movement | Remote exec via COM vtable — no wmic.exe (T1047) | Execução remota WMI sem wmic.exe (T1047) |
+| SCM lateral movement | Remote SYSTEM exec via Service Control Manager — no sc.exe (T1021.002) | Execução SYSTEM via SCM sem sc.exe (T1021.002) |
+| RDP session hijacking | Hijack disconnected/active sessions without password (T1563.002) | Hijack sessões RDP sem senha (T1563.002) |
 | LSASS dump | NtCreateProcessEx fork evasion (EDR bypass) | Evasão via fork NtCreateProcessEx (bypass EDR) |
 | Shellcode injection | VirtualAllocEx + CRT via process browser | Injeção via process browser do Mythic |
 | Screenshot | Pure ctypes GDI32/User32 — no pywin32 or Pillow | ctypes puro — sem pywin32 ou Pillow |
 | Obfuscation | XOR + Base64 at build time | XOR + Base64 no build |
+| Dropper formats | py / base64 / ps1 (Python Embeddable) / exe (PyInstaller) | py / base64 / ps1 (Python Embeddable) / exe (PyInstaller) |
 | Jitter | Symmetric beacon jitter | Jitter simétrico no beacon |
 | Cloudflare | URL-safe base64 for GET params | base64url-safe para parâmetros GET |
 
@@ -89,6 +94,15 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 | `load_dll` | Windows | No | T1059.006 | Load DLL from disk via LoadLibrary | Carrega DLL do disco via LoadLibrary |
 | `dump_lsass` | Windows | **Yes** | T1003.001 | Fork-dump LSASS (NtCreateProcessEx evasion) | Dump LSASS por fork de processo (evasão EDR) |
 
+### Lateral Movement / Privilege (Windows)
+
+| Command | OS | MITRE | Description (EN) | Descrição (PT-BR) |
+|---|---|---|---|---|
+| `token_steal` | Windows | T1134 | List / impersonate / exec via stolen process token | Lista / impersona / executa com token de processo |
+| `wmi_exec` | Windows | T1047, T1021.003 | Remote exec via WMI COM vtable — no wmic.exe | Execução remota WMI sem wmic.exe — via vtable COM |
+| `sc_exec` | Windows | T1021.002, T1543.003 | Remote SYSTEM exec via SCM API — no sc.exe | Execução SYSTEM via SCM API — sem sc.exe |
+| `rdp_hijack` | Windows | T1563.002 | List/hijack RDP sessions without password (req. SYSTEM) | Lista/hijacka sessões RDP sem senha (req. SYSTEM) |
+
 ### Reconnaissance
 
 | Command | OS | Description (EN) | Descrição (PT-BR) |
@@ -143,10 +157,20 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 | Option | Values | Description (EN) | Descrição (PT-BR) |
 |---|---|---|---|
 | `python_version` | Python 3.8 / 2.7 | Python runtime version | Versão do Python |
-| `output` | py / base64 | Output format | Formato de saída |
+| `output` | py / base64 / ps1 / exe | Output format | Formato de saída |
+| `python_embed_url` | URL | Python Embeddable zip URL (ps1 format only) | URL do Python Embeddable (formato ps1) |
 | `use_non_default_cryptography_lib` | No / Yes | Use `cryptography` pip library | Usar biblioteca `cryptography` |
 | `obfuscate_script` | Yes / No | XOR + Base64 obfuscation | Obfuscação XOR + Base64 |
 | `https_check` | Yes / No | Verify TLS certificate | Verificar certificado TLS |
+
+### Output Format Details
+
+| Format | Requires Python on target | Description |
+|---|---|---|
+| `py` | Yes | Plain Python script |
+| `base64` | Yes | Base64-encoded blob for one-liner delivery |
+| `ps1` | **No** | PowerShell dropper — downloads Python Embeddable (~8 MB), extracts to `%TEMP%\svc<uuid>\`, executes agent hidden |
+| `exe` | **No** | Standalone EXE via PyInstaller (`--onefile --noconsole`) — built on Mythic server |
 
 ---
 
@@ -156,10 +180,34 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 |---|---|---|
 | Beacon | Use jitter: `sleep 60 20` (±20%) | Use jitter: `sleep 60 20` (±20%) |
 | Payload on disk | Enable obfuscation at build; use `base64` format | Ative obfuscação no build; use formato `base64` |
-| EXE blocked | Deliver as `.py`/`.pyw` or Python Embeddable | Entregue como `.py`/`.pyw` ou Python Embeddable |
+| No Python on target | Use `ps1` (Python Embeddable) or `exe` (PyInstaller) format | Use formato `ps1` ou `exe` — sem dependência Python no alvo |
 | LSASS dump | Bypasses EDR hook on LSASS PID; `OpenProcess` still logged by Sysmon (Event ID 10) | Bypassa hook EDR por PID; `OpenProcess` ainda logado (Sysmon EID 10) |
 | Credential Guard | Completely blocks `dump_lsass` — verify before attempting | Bloqueia completamente `dump_lsass` — verifique antes |
 | Injection | RWX alloc flagged by most EDR; use reflective loader for evasion | Alocação RWX flagada pela maioria dos EDR |
+| token_steal | Impersonation leaves no logon event; `ImpersonateLoggedOnUser` not monitored by default | Impersonação sem evento de logon; `ImpersonateLoggedOnUser` não monitorado por padrão |
+| wmi_exec | No wmic.exe spawned; generates WMI activity log on target (Microsoft-Windows-WMI-Activity/Operational) | Sem wmic.exe; gera log WMI no alvo |
+| sc_exec | Generates EID 7045 (service created) on target — service name is randomized | Gera EID 7045 no alvo; nome do serviço é randômico |
+| rdp_hijack | Disconnected session hijack generates no EID 4624; only EID 4778 if logon audit enabled | Hijack de sessão desconectada não gera EID 4624 |
+
+---
+
+## Lateral Movement Kill Chain
+
+```
+# Token Impersonation → WMI → SCM → RDP Hijack
+
+token_steal                          # List tokens from running processes
+token_steal 1884                     # Impersonate domain admin token (no logon event)
+
+wmi_exec 10.12.193.4 "whoami"        # Validate lateral access via WMI (no wmic.exe)
+
+sc_exec 10.12.193.4 \               # Deploy Anubis as SYSTEM on lateral host
+  "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
+
+# On new SYSTEM agent at 10.12.193.4:
+rdp_hijack                           # List RDP sessions
+rdp_hijack 3                         # Hijack disconnected domain admin session
+```
 
 ---
 

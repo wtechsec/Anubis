@@ -83,19 +83,22 @@
             results.append("[-] Firewall: {}".format(e))
 
         # ══════════════════════════════════════════════════════════════════════
-        # 4. Reinicia TermService via SCM (ctypes advapi32 — sem sc.exe)
+        # 4. Reinicia SessionEnv + TermService via SCM (ctypes — sem sc.exe)
+        #    Ordem: stop SessionEnv → stop TermService → start TermService → start SessionEnv
+        #    SessionEnv (Remote Desktop Configuration) gerencia o listener RDP-Tcp
+        #    e precisa reiniciar para que o port change no registry seja aplicado.
         # ══════════════════════════════════════════════════════════════════════
         try:
             advapi32 = ctypes.windll.advapi32
-            kernel32  = ctypes.windll.kernel32
 
-            SC_MANAGER_CONNECT     = 0x0001
-            SERVICE_STOP           = 0x0020
-            SERVICE_START          = 0x0010
-            SERVICE_QUERY_STATUS   = 0x0004
-            SERVICE_CONTROL_STOP   = 0x0001
-            SERVICE_STOPPED        = 0x00000001
-            SERVICE_RUNNING        = 0x00000004
+            SC_MANAGER_CONNECT   = 0x0001
+            SERVICE_STOP         = 0x0020
+            SERVICE_START        = 0x0010
+            SERVICE_QUERY_STATUS = 0x0004
+            SERVICE_CONTROL_STOP = 0x0001
+            SERVICE_STOPPED      = 0x00000001
+            SERVICE_RUNNING      = 0x00000004
+            SVC_ACCESS           = SERVICE_STOP | SERVICE_START | SERVICE_QUERY_STATUS
 
             class SERVICE_STATUS(ctypes.Structure):
                 _fields_ = [
@@ -108,47 +111,50 @@
                     ("dwWaitHint",                W.DWORD),
                 ]
 
-            h_scm = advapi32.OpenSCManagerW(
-                None, None, SC_MANAGER_CONNECT)
-            h_svc = advapi32.OpenServiceW(
-                h_scm, "TermService",
-                SERVICE_STOP | SERVICE_START | SERVICE_QUERY_STATUS)
+            h_scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)
 
-            ss = SERVICE_STATUS()
+            def _stop_svc(name):
+                h = advapi32.OpenServiceW(h_scm, name, SVC_ACCESS)
+                ss = SERVICE_STATUS()
+                advapi32.ControlService(h, SERVICE_CONTROL_STOP, ctypes.byref(ss))
+                for _ in range(15):
+                    advapi32.QueryServiceStatus(h, ctypes.byref(ss))
+                    if ss.dwCurrentState == SERVICE_STOPPED:
+                        break
+                    time.sleep(1)
+                advapi32.CloseServiceHandle(h)
 
-            # stop
-            advapi32.ControlService(h_svc, SERVICE_CONTROL_STOP, ctypes.byref(ss))
-            for _ in range(15):
-                advapi32.QueryServiceStatus(h_svc, ctypes.byref(ss))
-                if ss.dwCurrentState == SERVICE_STOPPED:
-                    break
-                time.sleep(1)
+            def _start_svc(name):
+                h = advapi32.OpenServiceW(h_scm, name, SVC_ACCESS)
+                ss = SERVICE_STATUS()
+                advapi32.StartServiceW(h, 0, None)
+                for _ in range(15):
+                    advapi32.QueryServiceStatus(h, ctypes.byref(ss))
+                    if ss.dwCurrentState == SERVICE_RUNNING:
+                        break
+                    time.sleep(1)
+                advapi32.CloseServiceHandle(h)
+                return ss.dwCurrentState
 
-            # start
-            advapi32.StartServiceW(h_svc, 0, None)
+            _stop_svc("SessionEnv")   # para o listener RDP-Tcp primeiro
+            _stop_svc("TermService")
+            ts_state = _start_svc("TermService")
+            se_state = _start_svc("SessionEnv")  # relê porta do registry ao subir
 
-            # aguarda subir (máximo 10s)
-            for _ in range(10):
-                advapi32.QueryServiceStatus(h_svc, ctypes.byref(ss))
-                if ss.dwCurrentState == SERVICE_RUNNING:
-                    break
-                time.sleep(1)
-
-            advapi32.CloseServiceHandle(h_svc)
             advapi32.CloseServiceHandle(h_scm)
 
-            if ss.dwCurrentState == SERVICE_RUNNING:
-                results.append("[+] TermService reiniciado e ativo na porta {}".format(rdp_port))
+            if ts_state == SERVICE_RUNNING and se_state == SERVICE_RUNNING:
+                results.append("[+] TermService + SessionEnv reiniciados e ativos na porta {}".format(rdp_port))
             else:
-                results.append("[!] TermService reiniciado — estado: {} (aguarde alguns segundos)".format(
-                    ss.dwCurrentState))
+                results.append("[!] Restart: TermService={} SessionEnv={} (aguarde alguns segundos)".format(
+                    ts_state, se_state))
         except Exception as e:
-            results.append("[-] TermService restart: {}".format(e))
+            results.append("[-] TermService/SessionEnv restart: {}".format(e))
 
         # ══════════════════════════════════════════════════════════════════════
-        # 5. TCP probe (aguarda mais 2s para o RDP aceitar conexões)
+        # 5. TCP probe (aguarda 5s para o listener RDP-Tcp subir após SessionEnv)
         # ══════════════════════════════════════════════════════════════════════
-        time.sleep(2)
+        time.sleep(5)
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(8)

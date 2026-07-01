@@ -202,7 +202,7 @@
 
         xf_target = "/v:{}:{}".format(target, rdp_port)
 
-        results.append(
+        results.append((
             "╔══ PROXYCHAINS CONFIG ═════════════════════════════════════════╗\n"
             "║  [ProxyList]\n"
             "║  socks5  127.0.0.1  {}\n"
@@ -222,6 +222,6 @@
             s_port, xf_target, xf_creds,
             user_display or "(não fornecido)",
             target, rdp_port
-        )
+        ))
 
         return "\n".join(results)

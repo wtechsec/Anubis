@@ -42,7 +42,7 @@ class RdpExtArguments(TaskArguments):
                 name="domain",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Domínio Windows (ex: COPEL).",
+                description="Domínio Windows (ex: CORP).",
                 default_value="",
             ),
             CommandParameter(

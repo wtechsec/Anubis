@@ -59,11 +59,11 @@ class RdpExtArguments(TaskArguments):
             if self.command_line.strip().startswith('{'):
                 d = json.loads(self.command_line)
                 self.add_arg("target",     d.get("target",     ""))
-                self.add_arg("port",       d.get("port",       6000))
+                self.add_arg("port",       d.get("port",       6000), ParameterType.Number)
                 self.add_arg("username",   d.get("username",   ""))
                 self.add_arg("password",   d.get("password",   ""))
                 self.add_arg("domain",     d.get("domain",     ""))
-                self.add_arg("socks_port", d.get("socks_port", 7005))
+                self.add_arg("socks_port", d.get("socks_port", 7005), ParameterType.Number)
             else:
                 # Posicional: [target] [user] [password] [domain]
                 parts = self.command_line.strip().split()
@@ -71,12 +71,15 @@ class RdpExtArguments(TaskArguments):
                 self.add_arg("username",   parts[1] if len(parts) > 1 else "")
                 self.add_arg("password",   parts[2] if len(parts) > 2 else "")
                 self.add_arg("domain",     parts[3] if len(parts) > 3 else "")
-                self.add_arg("port",       6000)
-                self.add_arg("socks_port", 7005)
+                self.add_arg("port",       6000, ParameterType.Number)
+                self.add_arg("socks_port", 7005, ParameterType.Number)
         else:
-            for k, v in [("target",""), ("port",6000), ("username",""),
-                         ("password",""), ("domain",""), ("socks_port",7005)]:
-                self.add_arg(k, v)
+            self.add_arg("target",     "")
+            self.add_arg("port",       6000, ParameterType.Number)
+            self.add_arg("username",   "")
+            self.add_arg("password",   "")
+            self.add_arg("domain",     "")
+            self.add_arg("socks_port", 7005, ParameterType.Number)
 
 
 class RdpExtCommand(CommandBase):

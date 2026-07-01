@@ -33,21 +33,21 @@ class RdpHijackArguments(TaskArguments):
         if self.command_line:
             if self.command_line.strip().startswith('{'):
                 d = json.loads(self.command_line)
-                self.add_arg("session_id",  d.get("session_id",  0))
-                self.add_arg("dest_session", d.get("dest_session", -1))
+                self.add_arg("session_id",   d.get("session_id",  0),  ParameterType.Number)
+                self.add_arg("dest_session", d.get("dest_session", -1), ParameterType.Number)
             else:
                 parts = self.command_line.strip().split()
                 try:
-                    self.add_arg("session_id", int(parts[0]))
+                    self.add_arg("session_id", int(parts[0]), ParameterType.Number)
                 except (IndexError, ValueError):
-                    self.add_arg("session_id", 0)
+                    self.add_arg("session_id", 0, ParameterType.Number)
                 try:
-                    self.add_arg("dest_session", int(parts[1]))
+                    self.add_arg("dest_session", int(parts[1]), ParameterType.Number)
                 except (IndexError, ValueError):
-                    self.add_arg("dest_session", -1)
+                    self.add_arg("dest_session", -1, ParameterType.Number)
         else:
-            self.add_arg("session_id",  0)
-            self.add_arg("dest_session", -1)
+            self.add_arg("session_id",   0,  ParameterType.Number)
+            self.add_arg("dest_session", -1, ParameterType.Number)
 
 
 class RdpHijackCommand(CommandBase):

@@ -84,7 +84,10 @@ CRYPTO_HERE
             if socks:
                 message["socks"] = socks
             if responses or socks:
-                self.postMessageAndRetrieveResponse(message)
+                resp = self.postMessageAndRetrieveResponse(message)
+                if resp and "socks" in resp:
+                    for pkt in resp["socks"]:
+                        self.socks_in.put(pkt)
 
             with self._taskings_lock:
                 for t in done:
@@ -247,9 +250,13 @@ CRYPTO_HERE
             return False
 
     def agentSleep(self):
-        jitter = int(self.agent_config["Sleep"] * int(self.agent_config["Jitter"]) / 100)
+        sleep_val = self.agent_config["Sleep"]
+        if sleep_val <= 0:
+            time.sleep(0.05)
+            return
+        jitter = int(sleep_val * int(self.agent_config["Jitter"]) / 100)
         delta  = random.randint(-jitter, jitter) if jitter > 0 else 0
-        time.sleep(max(1, self.agent_config["Sleep"] + delta))
+        time.sleep(sleep_val + delta)
 
 #COMMANDS_HERE
 

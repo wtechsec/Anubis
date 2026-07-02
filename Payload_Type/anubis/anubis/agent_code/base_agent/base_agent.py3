@@ -83,7 +83,7 @@ CRYPTO_HERE
             message = {"action": "post_response", "responses": responses}
             if socks:
                 message["socks"] = socks
-            if responses:
+            if responses or socks:
                 self.postMessageAndRetrieveResponse(message)
 
             with self._taskings_lock:

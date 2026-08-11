@@ -1,48 +1,96 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import json
-
+import os
 
 class WinrmExtArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
+
         self.args = [
-            CommandParameter(name="remote", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="IP do HOST-B a configurar via lateral movement a partir do agente. Vazio = self-host"),
-            CommandParameter(name="target", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="IP/hostname (self-host). Vazio = IP local do agente"),
-            CommandParameter(name="port", type=ParameterType.Number,
-                             required=False, default_value=5985,
-                             description="Porta WinRM (5986 se ssl=True)"),
-            CommandParameter(name="username", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="Credencial (admin no alvo, p/ remote)"),
-            CommandParameter(name="password", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="Senha"),
-            CommandParameter(name="domain", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="Domínio (ex: CORP). Vazio = conta local"),
-            CommandParameter(name="socks_port", type=ParameterType.Number,
-                             required=False, default_value=7005,
-                             description="Porta do SOCKS5 no servidor Mythic"),
-            CommandParameter(name="add_user", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="Cria usuário local admin no alvo (self-host ou remote)"),
-            CommandParameter(name="add_pass", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="Senha do add_user. Vazio = senha aleatória gerada"),
-            CommandParameter(name="ssl", type=ParameterType.Boolean,
-                             required=False, default_value=False,
-                             description="HTTPS (5986) — só no bootstrap via PSRemoting"),
-            CommandParameter(name="action", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="'cleanup' reverte configurações no alvo (local ou remoto)"),
-            CommandParameter(name="deploy", type=ParameterType.String,
-                             required=False, default_value="",
-                             description="(com remote) caminho do payload do Anubis no HOST-A; copia e executa no HOST-B"),
+            CommandParameter(
+                name="remote",
+                type=ParameterType.String,
+                default_value="",
+                description="IP do HOST-B a configurar via lateral movement a partir do agente. Vazio = self-host"
+            ),
+
+            CommandParameter(
+                name="target",
+                type=ParameterType.String,
+                default_value="",
+                description="IP/hostname (self-host). Vazio = IP local do agente"
+            ),
+
+            CommandParameter(
+                name="port",
+                type=ParameterType.Number,
+                default_value=5985,
+                description="Porta WinRM (5986 se ssl=True)"
+            ),
+
+            CommandParameter(
+                name="username",
+                type=ParameterType.String,
+                default_value="",
+                description="Credencial (admin no alvo, p/ remote)"
+            ),
+
+            CommandParameter(
+                name="password",
+                type=ParameterType.String,
+                default_value="",
+                description="Senha"
+            ),
+
+            CommandParameter(
+                name="domain",
+                type=ParameterType.String,
+                default_value="",
+                description="Domínio (ex: CORP). Vazio = conta local"
+            ),
+
+            CommandParameter(
+                name="socks_port",
+                type=ParameterType.Number,
+                default_value=7005,
+                description="Porta do SOCKS5 no servidor Mythic"
+            ),
+
+            CommandParameter(
+                name="add_user",
+                type=ParameterType.String,
+                default_value="",
+                description="Cria usuário local admin no alvo"
+            ),
+
+            CommandParameter(
+                name="add_pass",
+                type=ParameterType.String,
+                default_value="",
+                description="Senha do add_user"
+            ),
+
+            CommandParameter(
+                name="ssl",
+                type=ParameterType.Boolean,
+                default_value=False,
+                description="HTTPS (5986)"
+            ),
+
+            CommandParameter(
+                name="action",
+                type=ParameterType.String,
+                default_value="",
+                description="'cleanup' reverte configurações"
+            ),
+
+            CommandParameter(
+                name="deploy",
+                type=ParameterType.String,
+                default_value="",
+                description="Caminho do payload do Anubis no HOST-A"
+            ),
         ]
 
     async def parse_arguments(self):

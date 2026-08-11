@@ -1,4 +1,4 @@
-def winrm_ext(self, task_id, target="", port=5985, username="", password="",
+    def winrm_ext(self, task_id, target="", port=5985, username="", password="",
                   domain="", socks_port=7005, add_user="", add_pass="", ssl=False,
                   action="", remote="", deploy=""):
         # winrm_ext — Anubis

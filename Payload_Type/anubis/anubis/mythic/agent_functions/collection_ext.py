@@ -1,6 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-import json
+import json, base64
 
 
 class CollectionExtArguments(TaskArguments):
@@ -127,8 +127,7 @@ class CollectionExtCommand(CommandBase):
         "  collection_ext {\"action\":\"clipboard\"}\n"
         "  collection_ext {\"action\":\"browser\",\"browser\":\"firefox\"}\n"
         "  collection_ext {\"action\":\"wifi\"}\n"
-        "  collection_ext {\"action\":\"search\",\"path\":\"C:\\\\Users\\\\\",\n"
-        "                  \"keywords\":\"senha,vpn,kdbx\"}\n"
+        "  collection_ext {\"action\":\"search\",\"path\":\"C:\\\\Users\\\\\",\"keywords\":\"senha,kdbx\"}\n"
         "  collection_ext {\"action\":\"get\",\"path\":\"C:\\\\Users\\\\a\\\\backup.kdbx\"}\n"
         "  collection_ext {\"action\":\"multiget\",\"exts\":\".kdbx,.rdp\",\"max_mb\":20}\n\n"
         "Posicional: collection_ext get C:\\Users\\a\\senhas.txt\n\n"
@@ -233,4 +232,3 @@ class CollectionExtCommand(CommandBase):
                             name, str(e))).encode()
                     ))
         return resp
-v

